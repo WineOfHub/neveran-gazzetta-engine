@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "neveran-gazzetta-image-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "IMAGE_MODEL": "@cf/black-forest-labs/flux-2-klein-9b",
+    "IMAGE_WIDTH": "1536",
+    "IMAGE_HEIGHT": "896"
+  },
+  "secrets": {
+    "required": ["GAZZETTA_IMAGE_WORKER_TOKEN"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}

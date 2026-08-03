@@ -1,0 +1,1 @@
+"""Adapter verso infrastrutture esterne."""

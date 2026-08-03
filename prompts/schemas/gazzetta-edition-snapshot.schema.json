@@ -1,0 +1,289 @@
+{
+  "$defs": {
+    "ArticleImportance": {
+      "enum": [
+        "lead",
+        "major",
+        "minor",
+        "brief"
+      ],
+      "title": "ArticleImportance",
+      "type": "string"
+    },
+    "GazzettaArticle": {
+      "additionalProperties": false,
+      "properties": {
+        "byline": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Byline",
+          "type": "string"
+        },
+        "category": {
+          "maxLength": 24,
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GazzettaImage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "importance": {
+          "$ref": "#/$defs/ArticleImportance"
+        },
+        "kicker": {
+          "anyOf": [
+            {
+              "maxLength": 42,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kicker"
+        },
+        "paragraphs": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Paragraphs",
+          "type": "array"
+        },
+        "pullQuote": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pullquote"
+        },
+        "summary": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 70,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "tone": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisualTone"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "category",
+        "byline",
+        "title",
+        "summary",
+        "paragraphs",
+        "importance"
+      ],
+      "title": "GazzettaArticle",
+      "type": "object"
+    },
+    "GazzettaImage": {
+      "additionalProperties": false,
+      "properties": {
+        "alt": {
+          "maxLength": 320,
+          "minLength": 1,
+          "title": "Alt",
+          "type": "string"
+        },
+        "caption": {
+          "anyOf": [
+            {
+              "maxLength": 320,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Caption"
+        },
+        "credit": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credit"
+        },
+        "focalPoint": {
+          "anyOf": [
+            {
+              "pattern": "^(?:100|\\d{1,2})% (?:100|\\d{1,2})%$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Focalpoint"
+        },
+        "src": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "pattern": "^https://",
+          "title": "Src",
+          "type": "string"
+        }
+      },
+      "required": [
+        "src",
+        "alt"
+      ],
+      "title": "GazzettaImage",
+      "type": "object"
+    },
+    "VisualTone": {
+      "enum": [
+        "loop_material",
+        "arcane",
+        "time",
+        "blood",
+        "neutral"
+      ],
+      "title": "VisualTone",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "articles": {
+      "items": {
+        "$ref": "#/$defs/GazzettaArticle"
+      },
+      "title": "Articles",
+      "type": "array"
+    },
+    "breakingNews": {
+      "maxItems": 3,
+      "minItems": 3,
+      "prefixItems": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "Breakingnews",
+      "type": "array"
+    },
+    "closingMotto": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Closingmotto",
+      "type": "string"
+    },
+    "editorialQuote": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Editorialquote",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "issueNumber": {
+      "exclusiveMinimum": 0,
+      "title": "Issuenumber",
+      "type": "integer"
+    },
+    "leadArticle": {
+      "$ref": "#/$defs/GazzettaArticle"
+    },
+    "locationLabel": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Locationlabel",
+      "type": "string"
+    },
+    "mastheadSubtitle": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Mastheadsubtitle",
+      "type": "string"
+    },
+    "publicationDate": {
+      "format": "date-time",
+      "title": "Publicationdate",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "default": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "slug": {
+      "maxLength": 120,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "title": "Slug",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "slug",
+    "issueNumber",
+    "publicationDate",
+    "mastheadSubtitle",
+    "locationLabel",
+    "breakingNews",
+    "leadArticle",
+    "articles",
+    "editorialQuote",
+    "closingMotto"
+  ],
+  "title": "GazzettaEditionSnapshot",
+  "type": "object"
+}

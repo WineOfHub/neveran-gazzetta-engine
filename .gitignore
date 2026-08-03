@@ -1,0 +1,60 @@
+# Segreti
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node / Cloudflare Worker
+node_modules/
+.wrangler/
+
+# Runtime locale e output ricostruibili
+runtime/
+data/local/
+artifacts/
+logs/
+*.log
+*.pid
+
+# Eval live e raw provider output
+eval/output/
+eval/live-results/
+raw-responses/
+
+# Config e documenti locali
+config/local.yaml
+config/*.local.yaml
+*.local.md
+
+# IDE e sistema operativo
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.tmp

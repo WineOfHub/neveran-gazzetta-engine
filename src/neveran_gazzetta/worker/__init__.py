@@ -1,0 +1,1 @@
+"""Worker autonomo della Gazzetta."""

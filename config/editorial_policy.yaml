@@ -1,0 +1,159 @@
+schema_version: 1
+policy_version: gazzetta-editorial-v1
+language: it
+
+edition:
+  breaking_news_count: 3
+  major_article_count: 2
+  minor_article_count: 2
+  brief_article_count: 1
+  editorial_quote_count: 1
+  closing_motto_count: 1
+  regenerate_every_slot: true
+  max_intentional_fake_per_edition: 1
+  require_intentional_fake: false
+
+slot_budgets:
+  breaking:
+    max_characters: 90
+  category:
+    max_characters: 24
+  kicker:
+    max_characters: 42
+  lead:
+    title_max_characters: 70
+    summary_max_words: 35
+    paragraph_count: 3
+    paragraph_min_words: 28
+    paragraph_max_words: 38
+    pull_quote_max_words: 18
+  major:
+    title_max_characters: 65
+    summary_max_words: 24
+    paragraph_count: 2
+    paragraph_min_words: 22
+    paragraph_max_words: 32
+    pull_quote_max_words: 18
+  minor:
+    title_max_characters: 60
+    summary_max_words: 20
+    paragraph_count: 1
+    paragraph_min_words: 25
+    paragraph_max_words: 40
+  brief:
+    title_max_characters: 55
+    summary_max_words: 16
+    paragraph_count: 1
+    paragraph_min_words: 25
+    paragraph_max_words: 32
+  editorial_quote:
+    max_words: 22
+  closing_motto:
+    max_words: 10
+
+reporting_mode_weights:
+  lead:
+    reported_event: 0.65
+    credible_absurdity: 0.35
+  breaking:
+    reported_event: 0.75
+    credible_absurdity: 0.25
+  major:
+    reported_event: 0.70
+    credible_absurdity: 0.25
+    unverified_rumor: 0.05
+  minor:
+    reported_event: 0.35
+    credible_absurdity: 0.35
+    unverified_rumor: 0.15
+    satirical_report: 0.10
+    intentional_fake: 0.05
+  brief:
+    reported_event: 0.30
+    credible_absurdity: 0.25
+    unverified_rumor: 0.20
+    satirical_report: 0.15
+    intentional_fake: 0.10
+
+truth_rules:
+  player_visible_labels: false
+  fake_allowed_slots:
+    - minor
+    - brief
+  forbidden_canon_relation:
+    - forbidden_conflict
+  deep_falsehood_requires_internal_fake_classification: true
+  weird_does_not_imply_false: true
+
+invention_rules:
+  allowed:
+    - common_person
+    - journalist
+    - witness
+    - social_relationship
+    - profession
+    - shop
+    - street
+    - local_product
+    - minor_local_place
+    - mundane_social_event
+  forbidden_as_real:
+    - deity
+    - cosmology
+    - metaphysical_law
+    - world_bending_power
+    - canonical_organization
+    - canonical_major_event
+  forbidden_items_may_appear_only_as_fake: true
+
+loop_rule:
+  canonical_meaning: materiale rarissimo e pregiato di Neveran
+  visual_tone_id: loop_material
+  forbidden_meanings:
+    - ciclo_temporale
+    - ripetizione
+    - ricorsione
+    - anello_narrativo
+    - fenomeno_generico
+  replacement_terms:
+    - ciclo
+    - ripetizione
+    - sequenza
+    - ricorrenza
+
+storylines:
+  max_appearances_including_first: 4
+  max_epilogues: 1
+  max_appearances_per_edition: 1
+  allow_skipped_editions: true
+  allow_closed_storyline_only_for_epilogue: true
+  recap_max_words: 180
+  prompt_context_max_tokens: 500
+  continuation_probability: 0.35
+  epilogue_probability: 0.08
+  max_continuations_per_edition: 2
+  new_storyline_probability: 0.22
+  max_new_storylines_per_edition: 2
+
+recurring_entities:
+  keep_recurring_editorial_core: true
+  avoid_same_byline_every_issue: true
+  journalist_core_per_edition: 3
+  journalist_core_names:
+    - Vaeris Cartis
+    - Oryn Neral
+    - Maev Velis
+    - Tivar Revas
+    - Neris Vhal
+    - Kelra Morn
+    - Sael Draik
+  other_entities_per_edition: 3
+  default_cooldown_issues: 1
+  repeated_npc_penalty: 0.25
+  allow_npc_in_unrelated_future_storyline: true
+
+artwork:
+  generation_enabled: true
+  use_static_lead_artwork: true
+  failure_policy: static_fallback
+  prompt_version: neveran-lead-artwork-v3

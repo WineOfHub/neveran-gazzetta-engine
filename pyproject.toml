@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "neveran-gazzetta-engine"
+version = "0.1.0"
+description = "Motore autonomo della Gazzetta globale del CCIN"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "httpx>=0.28,<1.0",
+  "pydantic>=2.10,<3.0",
+  "pydantic-settings>=2.7,<3.0",
+  "PyYAML>=6.0,<7.0",
+  "qdrant-client>=1.12,<2.0",
+  "tzdata>=2025.2",
+]
+
+[project.scripts]
+gazzetta-worker = "neveran_gazzetta.cli:worker_main"
+gazzetta-api = "neveran_gazzetta.cli:api_main"
+gazzetta-canary = "neveran_gazzetta.cli:canary_main"
+gazzetta-preflight = "neveran_gazzetta.cli:preflight_main"
+
+[project.optional-dependencies]
+api = [
+  "fastapi>=0.115,<1.0",
+  "uvicorn[standard]>=0.32,<1.0",
+]
+retrieval = [
+  "neveran-knowledge-engine>=0.4,<0.5",
+]
+dev = [
+  "build>=1.2,<2.0",
+  "hatchling>=1.27,<2.0",
+  "mypy>=1.14,<2.0",
+  "pytest>=8.3,<9.0",
+  "pytest-cov>=6.0,<7.0",
+  "ruff>=0.9,<1.0",
+  "types-PyYAML>=6.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/neveran_gazzetta"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["neveran_gazzetta"]
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "live: test opt-in che usa provider o infrastruttura reali",
+]
+
+[tool.coverage.run]
+source = ["neveran_gazzetta"]
+branch = true

@@ -1,0 +1,24 @@
+[Unit]
+Description=Neveran Gazzetta operational API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=neveran-gazzetta
+Group=neveran-gazzetta
+WorkingDirectory=/opt/neveran/gazzetta-engine/current
+EnvironmentFile=/etc/neveran/gazzetta-engine.env
+Environment=GAZZETTA_ROOT=/opt/neveran/gazzetta-engine/current
+Environment=GAZZETTA_TELEMETRY_BUFFER_PATH=/var/lib/neveran-gazzetta/monitor-buffer.jsonl
+ExecStart=/opt/neveran/gazzetta-engine/venv/bin/gazzetta-api
+Restart=on-failure
+RestartSec=15s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/neveran-gazzetta
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,122 @@
+schema_version: 1
+
+application:
+  name: neveran-gazzetta-engine
+  service_slug: gazzetta-engine
+  environment_env: ENVIRONMENT
+  log_level_env: LOG_LEVEL
+
+api:
+  host: 127.0.0.1
+  port: 8090
+  auth_mode: enforce
+  service_token_env: GAZZETTA_API_TOKEN
+  expose_player_content: false
+
+scheduler:
+  timezone: Europe/Rome
+  cadence_days: 2
+  publication_hour: 6
+  publication_minute: 0
+  tick_interval_seconds: 60
+  catch_up_policy: latest_due_only
+  publication_timestamp_policy: actual_publish_time
+  issue_number_policy: increment_on_publish
+
+worker:
+  lease_seconds: 900
+  heartbeat_seconds: 30
+  poll_seconds: 15
+  max_job_attempts: 3
+  startup_tick: true
+  account_email_env: GAZZETTA_WORKER_EMAIL
+  account_password_env: GAZZETTA_WORKER_PASSWORD
+
+retrieval:
+  owner_package: neveran-knowledge-engine
+  profile: gazzetta_generation
+  purpose: generation
+  audience: public_assistant
+  collection_env: QDRANT_COLLECTION
+  collection_default: game_public_knowledge
+  qdrant_url_env: QDRANT_URL
+  qdrant_api_key_env: QDRANT_API_KEY
+  embedding_provider: jina
+  embedding_model_env: JINA_EMBED_MODEL
+  embedding_model_default: jina-embeddings-v3
+  embedding_dimension_env: EMBED_DIM
+  embedding_dimension_default: 1024
+  query_task_env: JINA_TASK_QUERY
+  query_task_default: retrieval.query
+  max_queries: 5
+  top_k_per_query: 4
+  max_chunks: 10
+  max_chunks_per_document: 3
+  context_token_budget: 1200
+  allow_generation_without_evidence: false
+  distinguish_no_evidence_from_outage: true
+  require_release_alignment: true
+  release_manifest_path_env: CORPUS_RELEASE_MANIFEST_PATH
+  min_chunks_for_edition: 4
+  min_documents_for_edition: 3
+  min_average_score: 0.20
+
+generation:
+  provider: groq
+  api_key_env: GROQ_API_KEY
+  planner_model_env: GROQ_PLANNER_MODEL
+  planner_model_default: openai/gpt-oss-120b
+  writer_model_env: GROQ_WRITER_MODEL
+  writer_model_default: openai/gpt-oss-120b
+  verifier_model_env: GROQ_VERIFIER_MODEL
+  verifier_model_default: openai/gpt-oss-120b
+  structured_planner_strict: true
+  structured_verifier_strict: true
+  max_normal_calls: 3
+  max_repair_calls: 1
+  max_total_tokens_per_edition: 35000
+  max_storyline_context_tokens: 500
+  max_edition_output_tokens: 2500
+  max_rate_limit_wait_seconds: 180
+  rate_limit_strategy: response_headers
+  retry_on_invalid_content: false
+
+artwork:
+  provider: cloudflare_workers_ai
+  endpoint_env: GAZZETTA_IMAGE_WORKER_URL
+  token_env: GAZZETTA_IMAGE_WORKER_TOKEN
+  storage_bucket: gazzetta-artwork
+  max_stored_images: 24
+  model: "@cf/black-forest-labs/flux-2-klein-9b"
+  width: 1536
+  height: 896
+  request_timeout_seconds: 120
+  max_retries: 1
+
+publication:
+  storage: supabase
+  supabase_url_env: SUPABASE_URL
+  supabase_anon_key_env: SUPABASE_ANON_KEY
+  atomic_rpc: publish_gazzetta_edition
+  keep_last_valid_on_failure: true
+  player_reads_directly_from_supabase: true
+  player_calls_engine_api: false
+
+retention:
+  published_editions_days: null
+  withdrawn_editions_days: null
+  compact_storylines: true
+  raw_provider_responses_days: 30
+  detailed_run_logs_days: 90
+  storyline_compaction_days: 180
+  recurring_inactive_issues: 50
+  nonrecurring_keep_issues: 20
+
+telemetry:
+  enabled: true
+  monitor_url_env: NEVERAN_MONITOR_URL
+  monitor_token_env: NEVERAN_MONITOR_TOKEN
+  fail_open: true
+  include_prompt_text: false
+  include_lore_text: false
+  include_raw_response: false

@@ -1,0 +1,204 @@
+{
+  "$defs": {
+    "EventEntity": {
+      "additionalProperties": false,
+      "properties": {
+        "entityId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entityid"
+        },
+        "invented": {
+          "default": false,
+          "title": "Invented",
+          "type": "boolean"
+        },
+        "kind": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "recurringCandidate": {
+          "default": false,
+          "title": "Recurringcandidate",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "EventEntity",
+      "type": "object"
+    },
+    "ReportingMode": {
+      "enum": [
+        "reported_event",
+        "credible_absurdity",
+        "unverified_rumor",
+        "satirical_report",
+        "intentional_fake"
+      ],
+      "title": "ReportingMode",
+      "type": "string"
+    },
+    "StorylineStatus": {
+      "enum": [
+        "active",
+        "cooling",
+        "closed",
+        "epilogue"
+      ],
+      "title": "StorylineStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "appearanceCount": {
+      "maximum": 4,
+      "minimum": 1,
+      "title": "Appearancecount",
+      "type": "integer"
+    },
+    "epilogueUsed": {
+      "default": false,
+      "title": "Epilogueused",
+      "type": "boolean"
+    },
+    "finalSummary": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finalsummary"
+    },
+    "fingerprint": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Fingerprint",
+      "type": "string"
+    },
+    "firstIssue": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Firstissue"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "involvedEntities": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EventEntity"
+      },
+      "title": "Involvedentities",
+      "type": "array"
+    },
+    "lastIssue": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lastissue"
+    },
+    "location": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Location",
+      "type": "string"
+    },
+    "nextEligibleAt": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Nexteligibleat"
+    },
+    "openHook": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Openhook"
+    },
+    "recap": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Recap",
+      "type": "string"
+    },
+    "reportingMode": {
+      "$ref": "#/$defs/ReportingMode"
+    },
+    "status": {
+      "$ref": "#/$defs/StorylineStatus"
+    },
+    "title": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "status",
+    "recap",
+    "location",
+    "reportingMode",
+    "appearanceCount",
+    "fingerprint"
+  ],
+  "title": "StorylineMemory",
+  "type": "object"
+}

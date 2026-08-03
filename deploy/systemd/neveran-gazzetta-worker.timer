@@ -1,0 +1,12 @@
+[Unit]
+Description=Wake-up ogni minuto del Neveran Gazzetta Engine
+
+[Timer]
+OnBootSec=20s
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+Persistent=true
+Unit=neveran-gazzetta-worker.service
+
+[Install]
+WantedBy=timers.target

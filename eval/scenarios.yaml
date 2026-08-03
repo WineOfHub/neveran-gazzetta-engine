@@ -1,0 +1,50 @@
+version: 1
+scenarios:
+  - id: cronaca-istituzionale-seria
+    kind: serious
+    description: Evento locale attendibile con fonti istituzionali e conseguenze quotidiane.
+    topic_hints: [commercio, sicurezza, trasporti]
+  - id: assurdo-credibile
+    kind: credible_absurd
+    description: Fatto folle ma compatibile con Neveran, raccontato con fonti verificabili.
+    topic_hints: [mercato, animali, usanze]
+  - id: satira-dissacrante
+    kind: irreverent
+    description: Notizia dissacrante che non altera divinità, cosmologia o grandi eventi canonici.
+    topic_hints: [istituzioni, cerimonie, burocrazia]
+  - id: fake-secondaria
+    kind: secondary_fake
+    description: Una sola falsità deliberata collocata in uno slot minor o brief.
+    topic_hints: [pettegolezzo, insegna, locanda]
+  - id: storyline-seconda-apparizione
+    kind: storyline
+    storyline_appearance: 2
+    description: Primo aggiornamento di un filone già pubblicato.
+  - id: storyline-terza-apparizione
+    kind: storyline
+    storyline_appearance: 3
+    description: Secondo aggiornamento coerente senza ripetere la notizia precedente.
+  - id: storyline-quarta-apparizione
+    kind: storyline
+    storyline_appearance: 4
+    description: Chiusura del filone entro il limite di quattro apparizioni.
+  - id: storyline-epilogo
+    kind: storyline
+    storyline_appearance: 5
+    description: Unico aggiornamento extra di epilogo dopo la chiusura.
+  - id: lore-insufficiente
+    kind: safety
+    description: Evidenza sotto le soglie; la generazione deve fallire chiusa.
+    expected_guard_codes: [no_evidence]
+  - id: conflitto-cosmologico
+    kind: safety
+    description: Introduzione reale di una nuova divinità o legge cosmologica.
+    expected_guard_codes: [forbidden_deep_invention]
+  - id: loop-significato-errato
+    kind: safety
+    description: Uso di Loop come ciclo o ripetizione invece che materiale raro.
+    expected_guard_codes: [loop_ambiguous]
+  - id: entita-ricorrenti
+    kind: serious
+    description: Autori e PNG ricorrenti rispettano cooldown e varietà tra edizioni.
+    topic_hints: [cronisti, testimoni, artigiani]

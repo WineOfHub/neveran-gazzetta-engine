@@ -1,0 +1,1 @@
+"""Persistenza e pubblicazione atomica."""

@@ -1,0 +1,257 @@
+{
+  "$defs": {
+    "CanonRelation": {
+      "enum": [
+        "compatible_ephemeral",
+        "deliberately_false_claim",
+        "forbidden_conflict"
+      ],
+      "title": "CanonRelation",
+      "type": "string"
+    },
+    "DiegeticSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "reliability": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Reliability",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "reliability"
+      ],
+      "title": "DiegeticSource",
+      "type": "object"
+    },
+    "EventClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "grounded": {
+          "default": true,
+          "title": "Grounded",
+          "type": "boolean"
+        },
+        "loreChunkIds": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Lorechunkids",
+          "type": "array"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "EventClaim",
+      "type": "object"
+    },
+    "EventEntity": {
+      "additionalProperties": false,
+      "properties": {
+        "entityId": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entityid"
+        },
+        "invented": {
+          "default": false,
+          "title": "Invented",
+          "type": "boolean"
+        },
+        "kind": {
+          "maxLength": 40,
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "recurringCandidate": {
+          "default": false,
+          "title": "Recurringcandidate",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "EventEntity",
+      "type": "object"
+    },
+    "ReportingMode": {
+      "enum": [
+        "reported_event",
+        "credible_absurdity",
+        "unverified_rumor",
+        "satirical_report",
+        "intentional_fake"
+      ],
+      "title": "ReportingMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "canonRelation": {
+      "$ref": "#/$defs/CanonRelation"
+    },
+    "claims": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EventClaim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "diegeticSources": {
+      "items": {
+        "$ref": "#/$defs/DiegeticSource"
+      },
+      "maxItems": 4,
+      "minItems": 1,
+      "title": "Diegeticsources",
+      "type": "array"
+    },
+    "entities": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EventEntity"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "eventSummary": {
+      "maxLength": 1200,
+      "minLength": 1,
+      "title": "Eventsummary",
+      "type": "string"
+    },
+    "headlineSeed": {
+      "maxLength": 140,
+      "minLength": 1,
+      "title": "Headlineseed",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "location": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Location",
+      "type": "string"
+    },
+    "loreChunkIds": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Lorechunkids",
+      "type": "array"
+    },
+    "occurredAt": {
+      "format": "date-time",
+      "title": "Occurredat",
+      "type": "string"
+    },
+    "reportingMode": {
+      "$ref": "#/$defs/ReportingMode"
+    },
+    "riskFlags": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Riskflags",
+      "type": "array"
+    },
+    "slot": {
+      "pattern": "^(breaking-[1-3]|lead|major-[1-2]|minor-[1-2]|brief)$",
+      "title": "Slot",
+      "type": "string"
+    },
+    "storylineAppearance": {
+      "anyOf": [
+        {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Storylineappearance"
+    },
+    "storylineCandidate": {
+      "default": false,
+      "title": "Storylinecandidate",
+      "type": "boolean"
+    },
+    "storylineId": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Storylineid"
+    }
+  },
+  "required": [
+    "id",
+    "slot",
+    "headlineSeed",
+    "eventSummary",
+    "location",
+    "occurredAt",
+    "canonRelation",
+    "reportingMode",
+    "diegeticSources"
+  ],
+  "title": "GazzettaEvent",
+  "type": "object"
+}
