@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 
 import httpx
+import pytest
 
+from neveran_gazzetta.domain.errors import GenerationQueueEmpty
 from neveran_gazzetta.storage.supabase import SupabaseRpcClient
 
 
@@ -84,3 +86,45 @@ def test_adapter_accetta_contesto_editoriale_camel_case() -> None:
     assert state.storylines == ()
     assert state.recurring_entities == ()
     assert state.topic_hints == ()
+
+
+def test_adapter_legge_la_profondita_coda() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/auth/v1/token":
+            return httpx.Response(200, json={"access_token": "jwt-test"})
+        if request.url.path.endswith("/gazzetta_get_queue_status"):
+            return httpx.Response(200, json={"queueDepth": 1, "queueDepthTarget": 4})
+        raise AssertionError(request.url.path)
+
+    adapter = SupabaseRpcClient(
+        url="https://supabase.test",
+        anon_key="anon-test",
+        email="worker@test.invalid",
+        password="password-test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    status = adapter.queue_status()
+
+    assert status.depth == 1
+    assert status.depth_target == 4
+
+
+def test_adapter_traduce_queue_empty_in_errore_tipizzato() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/auth/v1/token":
+            return httpx.Response(200, json={"access_token": "jwt-test"})
+        if request.url.path.endswith("/publish_next_gazzetta_edition"):
+            return httpx.Response(400, json={"message": "queue_empty"})
+        raise AssertionError(request.url.path)
+
+    adapter = SupabaseRpcClient(
+        url="https://supabase.test",
+        anon_key="anon-test",
+        email="worker@test.invalid",
+        password="password-test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(GenerationQueueEmpty):
+        adapter.publish_next("worker-test")

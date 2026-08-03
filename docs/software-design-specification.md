@@ -187,12 +187,13 @@ flowchart LR
     V1 --> W["Groq Newspaper Writer"]
     W --> V2["Validazione edizione"]
     V2 --> J["Groq verifier strict"]
-    J --> PUB["RPC pubblicazione atomica"]
-    PUB --> DB["Supabase snapshot corrente"]
+    J --> MAT["RPC materialize (coda)"]
+    MAT --> PUB["RPC publish_next (a cadenza)"]
+    PUB --> DB["Supabase archivio pubblicato"]
     DB --> APP["Main app"]
     Q --> MON["Neveran Monitor"]
     P --> ST["Storyline ledger"]
-    PUB --> ST
+    MAT --> ST
 ```
 
 ### 5.1 Processi deployati
@@ -799,7 +800,12 @@ Singleton operativo:
 - `timezone text default 'Europe/Rome'`;
 - `cadence_days integer default 2`;
 - `publication_hour integer default 6`;
-- `next_due_at timestamptz`;
+- `next_due_at timestamptz` — cursore di **pubblicazione** (cadenza verso i giocatori);
+- `next_generation_slot timestamptz` — cursore di **generazione**, indipendente e libero di
+  correre avanti rispetto a `next_due_at` (migration
+  `20260803150000_gazzetta_generation_queue.sql`);
+- `queue_depth_target integer default 1` — quante edizioni `validated` non ancora pubblicate il
+  motore tiene pronte in coda;
 - `active_policy_version text`;
 - `last_success_at timestamptz`;
 - `last_failure_at timestamptz`;
@@ -903,7 +909,9 @@ Non sostituisce i registry canonici.
 - `id uuid`;
 - `issue_number integer unique`;
 - `slug text unique`;
-- `status generating|validated|published|withdrawn|failed`;
+- `status generating|validated|published|withdrawn|failed` — `validated` è lo stato reale di
+  un'edizione già generata e in coda, non ancora pubblicata (numero/slug già assegnati, memoria
+  editoriale già aggiornata; vedi §13.3);
 - `is_current boolean`;
 - `scheduled_for timestamptz`;
 - `published_at timestamptz`;
@@ -948,7 +956,9 @@ Le RPC sono:
 - `lease_next_gazzetta_job`;
 - `renew_gazzetta_job_lease`;
 - `submit_gazzetta_run`;
-- `publish_gazzetta_edition`;
+- `materialize_gazzetta_edition`;
+- `publish_next_gazzetta_edition`;
+- `gazzetta_get_queue_status`;
 - `fail_gazzetta_job`.
 
 ### 13.2 RPC amministrative
@@ -961,29 +971,53 @@ Le RPC sono:
 
 La RPC “genera ora” non viene implementata nella prima versione.
 
-### 13.3 Pubblicazione atomica
+### 13.3 Generazione e pubblicazione disaccoppiate
 
-`publish_gazzetta_edition` deve:
+A partire dalla migration `20260803150000_gazzetta_generation_queue.sql`, generazione e
+pubblicazione non sono più un'unica operazione atomica: sono due RPC distinte, ciascuna con il
+proprio lock transazionale (`gazzetta_materialize` e `gazzetta_publish`), che permettono di tenere
+`queue_depth_target` edizioni pronte in anticipo (bootstrap iniziale o rabbocco settimanale).
+
+`materialize_gazzetta_edition` (alla generazione, non alla pubblicazione) deve:
 
 1. verificare lease e identità worker;
 2. verificare job e run validati;
 3. verificare hash e numero di slot;
-4. acquisire lock transazionale;
-5. assegnare il prossimo `issue_number`;
-6. rimuovere `is_current` dalla precedente;
-7. pubblicare il nuovo snapshot;
-8. aggiornare storyline ed entità;
-9. avanzare `next_due_at`;
-10. completare il job;
-11. scrivere audit.
+4. acquisire il lock `gazzetta_materialize`;
+5. assegnare il prossimo `issue_number` e lo slug;
+6. inserire l'edizione con `status = 'validated'`, `is_current = false`, `published_at = null` —
+   **senza** stampare `publicationDate` nello snapshot (verrebbe letta al momento sbagliato: la
+   vera data di uscita non è ancora nota se l'edizione resta in coda);
+7. aggiornare qui storyline ed entità (non alla pubblicazione), così edizioni generate in batch
+   restano coerenti fra loro invece di leggere tutte la stessa istantanea di memoria;
+8. completare il job;
+9. scrivere audit (`edition_materialized`).
 
-Ogni errore effettua rollback dell'intera transazione.
+`publish_next_gazzetta_edition` (alla pubblicazione, nessuna chiamata LLM) deve:
+
+1. verificare identità worker;
+2. acquisire il lock `gazzetta_publish`;
+3. saltare gli slot di pubblicazione ormai superati senza recuperarli in burst (stessa filosofia
+   del vecchio cursore unico: se `now()` è molto oltre `next_due_at`, il cursore avanza fino allo
+   slot corrente senza pubblicare le edizioni intermedie);
+4. se lo slot non è ancora dovuto: nessuna operazione;
+5. se dovuto e la coda `validated` è vuota: solleva `queue_empty` — il worker gestisce il fallback
+   sincrono (genera un'edizione in emergenza con lo stesso percorso di codice ordinario, poi
+   ripubblica);
+6. se dovuto e la coda ha un'edizione pronta: prende la più vecchia (`issue_number` crescente),
+   stampa qui la vera `publicationDate`, rimuove `is_current` dalla precedente, pubblica il nuovo
+   snapshot, avanza `next_due_at`, scrive audit (`edition_published`).
+
+Ogni errore effettua rollback della singola transazione coinvolta (non più un'unica transazione
+generazione+pubblicazione).
 
 ### 13.4 RLS
 
 Player autenticati:
 
-- possono leggere soltanto l'edizione `published` e `is_current`;
+- possono leggere l'intero archivio di edizioni `published` (non solo `is_current` — allargato
+  dalla migration `20260803150000_gazzetta_generation_queue.sql`; le edizioni `validated` in coda
+  restano invisibili, la RLS filtra solo su `status = 'published'`);
 - non possono leggere job, run, eventi interni, storyline o entità;
 - non possono scrivere.
 
@@ -1017,10 +1051,17 @@ ma `next_due_at` nel database è la fonte di verità.
 
 ### 14.3 Catch-up
 
-- `now < next_due_at`: nessun job.
-- `now >= next_due_at` e slot successivo non ancora dovuto: crea/esegue il job in ritardo.
-- slot successivo già dovuto: marca gli slot precedenti `missed` e crea soltanto l'ultimo dovuto.
-- non esiste backlog di edizioni da pubblicare in rapida successione.
+Generazione e pubblicazione hanno ciascuna il proprio criterio di recupero (§13.3):
+
+- **Generazione** (`next_generation_slot`): non insegue il tempo reale — crea il prossimo job
+  finché `queue_depth_target` non è raggiunto, indipendentemente da quanto `next_generation_slot`
+  sia nel passato o nel futuro rispetto a `now()`. Un job in `dead_letter` non blocca il cursore:
+  la profondità coda scende e la logica ne crea semplicemente uno nuovo al prossimo slot.
+- **Pubblicazione** (`next_due_at`): `now < next_due_at` → nessuna pubblicazione. Se lo slot
+  successivo è già dovuto, gli slot intermedi vengono saltati senza recuperarli in burst — stessa
+  filosofia di prima, applicata solo al cursore di pubblicazione.
+- Non esiste backlog di edizioni da pubblicare in rapida successione, né in generazione (un job
+  per tick) né in pubblicazione (uno slot alla volta, mai burst).
 
 ### 14.4 Idempotenza
 
@@ -1391,7 +1432,7 @@ Non ignorare:
 - Jina stub con dimensione verificata;
 - Groq stub con header rate limit;
 - Supabase locale o test project;
-- pubblicazione atomica;
+- materializzazione e pubblicazione (§13.3), ciascuna nella propria transazione;
 - rollback su errore;
 - RLS player/admin/worker.
 
@@ -1609,7 +1650,8 @@ Il sistema è pronto quando:
 12. nessun filone appare due volte nello stesso numero;
 13. le firme ricorrenti sono percepibili ma varie;
 14. un errore lascia pubblicata la vecchia edizione;
-15. il publish è atomico e idempotente;
+15. materializzazione e pubblicazione sono ciascuna atomica e idempotente nella propria
+    transazione (§13.3 — non più un'unica transazione generazione+pubblicazione);
 16. l'edizione ritirata resta auditabile;
 17. il worker recupera da crash e offline;
 18. la console mostra stato, errori, quote e scadenze;
@@ -1679,6 +1721,16 @@ Il pulsante esiste mockato, ma non esiste RPC o endpoint mutante.
 ### GAZ-010 — Loop materiale
 
 Il termine è valido esclusivamente nell'accezione di materiale raro e pregiato.
+
+### GAZ-011 — Coda di generazione anticipata, disaccoppiata dalla pubblicazione
+
+Decisa nel wayfinder "Coordinazione gazzetta-engine ↔ dialogue-forge"
+(`neveran-main-app/.scratch/gazzetta-dialogue-coordination`, Ticket 01). Due cursori indipendenti
+(`next_generation_slot` per la generazione, `next_due_at` per la pubblicazione) invece di uno solo;
+la memoria editoriale si aggiorna alla generazione (`materialize_gazzetta_edition`), non alla
+pubblicazione (`publish_next_gazzetta_edition`, senza chiamate LLM). Permette un buffer di edizioni
+pronte (bootstrap iniziale o rabbocco settimanale) senza cambiare la cadenza percepita dai
+giocatori. Vedi §12.1, §12.8, §13.3, §13.4, §14.3.
 
 ---
 

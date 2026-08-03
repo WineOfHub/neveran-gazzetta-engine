@@ -17,6 +17,13 @@ ARTWORK_MIGRATION = (
     / "migrations"
     / "20260803120000_gazzetta_artwork_storage.sql"
 )
+QUEUE_MIGRATION = (
+    ROOT
+    / "neveran-main-app"
+    / "supabase"
+    / "migrations"
+    / "20260803150000_gazzetta_generation_queue.sql"
+)
 
 
 def test_migration_copre_tabelle_rpc_e_rls() -> None:
@@ -160,3 +167,83 @@ def test_artwork_storage_usa_bucket_pubblico_ma_scrittura_worker_only() -> None:
     assert "for delete to authenticated" in sql
     assert "x-upsert=false" in sql
     assert "service_role" not in sql
+
+
+def test_coda_introduce_due_cursori_indipendenti() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "add column next_generation_slot timestamptz" in sql
+    assert "add column queue_depth_target integer not null default 1" in sql
+    assert "check (queue_depth_target between 1 and 10)" in sql
+
+
+def test_archivio_pubblicato_visibile_a_tutti_non_solo_edizione_corrente() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "drop policy if exists gazzetta_editions_player_current" in sql
+    assert "create policy gazzetta_editions_player_archive" in sql
+    assert "using (status = 'published')" in sql
+    assert "using (status = 'published' and is_current)" not in sql
+
+
+def test_lease_next_e_guidato_dalla_profondita_coda_non_da_un_cursore_unico() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "function public.lease_next_gazzetta_job(p_worker_id text)" in sql
+    assert "where status = 'validated'" in sql
+    assert "if v_depth < v_state.queue_depth_target then" in sql
+    assert "order by j.schedule_slot asc" in sql
+
+
+def test_materialize_sostituisce_publish_e_non_stampa_la_data_di_pubblicazione() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "function public.materialize_gazzetta_edition(" in sql
+    assert "drop function if exists public.publish_gazzetta_edition(uuid, text, uuid)" in sql
+    assert "'validated', false" in sql
+    assert "publicationdate" not in sql.split(
+        "drop function if exists public.publish_gazzetta_edition"
+    )[0].split("function public.materialize_gazzetta_edition(")[1]
+
+
+def test_publish_next_stampa_la_data_e_solleva_queue_empty_se_la_coda_e_vuota() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "function public.publish_next_gazzetta_edition(p_worker_id text)" in sql
+    assert "raise exception 'queue_empty'" in sql
+    assert "{publicationdate}" in sql
+    assert "order by issue_number asc" in sql
+
+
+def test_publish_next_salta_gli_slot_scaduti_senza_recuperarli_in_burst() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "exit when v_next > now();" in sql
+
+
+def test_fail_job_non_tocca_piu_il_cursore_di_pubblicazione() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+    fail_job_section = sql.split("function public.fail_gazzetta_job(")[1].split(
+        "function public.admin_get_gazzetta_status"
+    )[0]
+
+    assert "next_due_at" not in fail_job_section
+
+
+def test_admin_status_espone_la_profondita_coda() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "'queuedepth'" in sql
+    assert "'queuededitions'" in sql
+    assert "where status = 'validated'" in sql
+
+
+def test_worker_puo_leggere_la_profondita_coda_senza_ruolo_admin() -> None:
+    sql = QUEUE_MIGRATION.read_text(encoding="utf-8").lower()
+
+    assert "function public.gazzetta_get_queue_status()" in sql
+    assert "if not public.is_gazzetta_worker() then raise exception 'forbidden'; end if;" in (
+        sql.split("function public.gazzetta_get_queue_status()")[1]
+    )
+    assert "'queuedepth', v_depth" in sql
+    assert "'queuedepthtarget', v_state.queue_depth_target" in sql

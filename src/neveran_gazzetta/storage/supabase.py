@@ -7,10 +7,11 @@ from uuid import UUID
 
 import httpx
 
-from neveran_gazzetta.application.contracts import JobLease, PreparedRun
+from neveran_gazzetta.application.contracts import JobLease, PreparedRun, QueueStatus
 from neveran_gazzetta.application.editorial_state import EditorialState
 from neveran_gazzetta.domain.errors import (
     ConfigurationError,
+    GenerationQueueEmpty,
     ProviderUnavailable,
     PublicationConflict,
 )
@@ -163,19 +164,45 @@ class SupabaseRpcClient:
             raise ProviderUnavailable("ID run Supabase non valido")
         return UUID(result)
 
-    def publish(self, job_id: UUID, worker_id: str, run_id: UUID) -> dict[str, object]:
+    def materialize(self, job_id: UUID, worker_id: str, run_id: UUID) -> dict[str, object]:
         payload: dict[str, object] = {
             "p_job_id": str(job_id),
             "p_worker_id": worker_id,
             "p_run_id": str(run_id),
         }
         try:
-            result = self._rpc("publish_gazzetta_edition", payload)
+            result = self._rpc("materialize_gazzetta_edition", payload)
         except ProviderUnavailable:
-            result = self._rpc("publish_gazzetta_edition", payload)
+            result = self._rpc("materialize_gazzetta_edition", payload)
+        if not isinstance(result, dict):
+            raise ProviderUnavailable("Snapshot materializzato non valido")
+        return result
+
+    def publish_next(self, worker_id: str) -> dict[str, object] | None:
+        try:
+            result = self._rpc("publish_next_gazzetta_edition", {"p_worker_id": worker_id})
+        except PublicationConflict as exc:
+            # La RPC (in neveran-main-app/supabase/migrations/
+            # 20260803150000_gazzetta_generation_queue.sql) segnala la coda vuota con
+            # `raise exception 'queue_empty'`: PostgREST la trasforma in un 400 il cui
+            # `message` è esattamente quel testo. Un cambio del messaggio SQL in quel
+            # repo romperebbe silenziosamente questo confronto.
+            if str(exc) == GenerationQueueEmpty.code:
+                raise GenerationQueueEmpty(
+                    "Slot di pubblicazione dovuto ma la coda è vuota"
+                ) from exc
+            raise
+        if result is None:
+            return None
         if not isinstance(result, dict):
             raise ProviderUnavailable("Snapshot pubblicato non valido")
         return result
+
+    def queue_status(self) -> QueueStatus:
+        result = self._rpc("gazzetta_get_queue_status", {})
+        if not isinstance(result, dict):
+            raise ProviderUnavailable("Stato coda Supabase non valido")
+        return QueueStatus(depth=result["queueDepth"], depth_target=result["queueDepthTarget"])
 
     def fail_job(
         self,

@@ -15,13 +15,24 @@ from neveran_gazzetta.application.contracts import (
     Pipeline,
     ValidationStatus,
 )
-from neveran_gazzetta.domain.errors import GazzettaError, InvalidGeneration, ProviderQuota
+from neveran_gazzetta.domain.errors import (
+    GazzettaError,
+    GenerationQueueEmpty,
+    InvalidGeneration,
+    ProviderQuota,
+)
 from neveran_gazzetta.telemetry import NullTelemetry, TelemetrySink
+
+# Sotto questa profondità la coda emette un evento di telemetria (Ticket 06):
+# nessun allarme attivo, solo un gancio pronto per un futuro collegamento a
+# neveran-monitor.
+_LOW_QUEUE_DEPTH_THRESHOLD = 2
 
 
 class TickStatus(StrEnum):
     IDLE = "idle"
     PUBLISHED = "published"
+    MATERIALIZED = "materialized"
     FAILED = "failed"
 
 
@@ -130,10 +141,95 @@ class GazzettaWorker:
     def _tick_serialized(self) -> TickResult:
         self._telemetry.emit("scheduler_tick", status_code=200)
         self._heartbeat("online")
+        self._check_queue_depth()
+
+        try:
+            published = self._control.publish_next(self._worker_id)
+        except GenerationQueueEmpty:
+            return self._emergency_fallback()
+        except Exception as exc:
+            return self._publish_failure(exc)
+
+        if published is not None:
+            self._telemetry.emit(
+                "edition_published",
+                status_code=200,
+                metadata={"source": "queue"},
+            )
+            return TickResult(status=TickStatus.PUBLISHED, edition=published)
+
+        # Nessuna pubblicazione dovuta in questo momento: prova a rabboccare la coda
+        # di edizioni pronte (al massimo una generazione per tick — la cadenza dei
+        # tick stessa fa da pacing fra chiamate Groq successive).
         lease = self._control.lease_next(self._worker_id)
         if lease is None:
             self._telemetry.emit("lease_idle", status_code=204)
             return TickResult(status=TickStatus.IDLE)
+        return self._generate(lease)
+
+    def _check_queue_depth(self) -> None:
+        with suppress(Exception):
+            status = self._control.queue_status()
+            if status.depth < _LOW_QUEUE_DEPTH_THRESHOLD:
+                self._telemetry.emit(
+                    "queue_depth_low",
+                    status_code=200,
+                    metadata={
+                        "queue_depth": status.depth,
+                        "queue_depth_target": status.depth_target,
+                    },
+                )
+
+    def _emergency_fallback(self) -> TickResult:
+        """La pubblicazione è dovuta ma la coda è vuota: genera un'edizione subito
+        (stesso percorso di codice della generazione ordinaria) e ripubblica."""
+        self._telemetry.emit("queue_empty_at_due_slot", status_code=200)
+        lease = self._control.lease_next(self._worker_id)
+        if lease is None:
+            self._telemetry.emit("queue_empty_no_job_available", status_code=503)
+            return TickResult(status=TickStatus.FAILED, error_code=GenerationQueueEmpty.code)
+
+        generated = self._generate(lease)
+        if generated.status != TickStatus.MATERIALIZED:
+            return generated
+
+        try:
+            published = self._control.publish_next(self._worker_id)
+        except GenerationQueueEmpty:
+            self._telemetry.emit("queue_still_empty_after_emergency", status_code=503)
+            return TickResult(
+                status=TickStatus.FAILED,
+                job_id=generated.job_id,
+                error_code=GenerationQueueEmpty.code,
+            )
+        except Exception as exc:
+            return self._publish_failure(exc, job_id=generated.job_id)
+
+        if published is None:
+            # next_due_at era già dovuto quando siamo entrati: non dovrebbe succedere,
+            # ma non blocchiamo il worker — la coda è comunque stata rabboccata.
+            return generated
+
+        self._telemetry.emit(
+            "edition_published",
+            status_code=200,
+            metadata={"source": "emergency_fallback"},
+        )
+        return TickResult(
+            status=TickStatus.PUBLISHED, job_id=generated.job_id, edition=published
+        )
+
+    def _publish_failure(self, exc: Exception, *, job_id: UUID | None = None) -> TickResult:
+        code = exc.code if isinstance(exc, GazzettaError) else "unexpected_error"
+        self._telemetry.emit(
+            "publish_failed",
+            status_code=503,
+            error_message=str(exc),
+            metadata={"error_code": code},
+        )
+        return TickResult(status=TickStatus.FAILED, job_id=job_id, error_code=code)
+
+    def _generate(self, lease: JobLease) -> TickResult:
         trace_id = str(lease.job_id)
         self._telemetry.emit(
             "lease_acquired",
@@ -184,9 +280,9 @@ class GazzettaWorker:
                     raise InvalidGeneration("Il run non ha superato la validazione")
                 run_id = self._control.submit_run(lease, self._worker_id, run)
                 renewer.ensure_healthy()
-                edition = self._control.publish(lease.job_id, self._worker_id, run_id)
+                edition = self._control.materialize(lease.job_id, self._worker_id, run_id)
                 self._telemetry.emit(
-                    "edition_published",
+                    "edition_materialized",
                     status_code=200,
                     trace_id=trace_id,
                     metadata={"job_id": trace_id},
@@ -206,7 +302,7 @@ class GazzettaWorker:
                     )
             self._heartbeat("online", {"last_job_id": str(lease.job_id)})
             return TickResult(
-                status=TickStatus.PUBLISHED,
+                status=TickStatus.MATERIALIZED,
                 job_id=lease.job_id,
                 edition=edition,
             )
@@ -236,8 +332,9 @@ class GazzettaWorker:
                     retryable=retryable,
                     available_at=available_at,
                 )
-                # La pubblicazione potrebbe essere riuscita ma la risposta essersi persa.
-                # Lo stato autorevole resta Supabase e il prossimo tick riconcilia il job.
+                # La materializzazione potrebbe essere riuscita ma la risposta essersi
+                # persa. Lo stato autorevole resta Supabase e il prossimo tick riconcilia
+                # il job.
             with suppress(Exception):
                 self._heartbeat("degraded", {"error_code": code})
             return TickResult(status=TickStatus.FAILED, job_id=lease.job_id, error_code=code)

@@ -29,6 +29,11 @@ class JobLease(ContractModel):
     policy_version: str
 
 
+class QueueStatus(ContractModel):
+    depth: int = Field(ge=0)
+    depth_target: int = Field(ge=1)
+
+
 class PreparedRun(ContractModel):
     phase: str
     validation_status: ValidationStatus
@@ -91,7 +96,11 @@ class ControlPlane(Protocol):
 
     def submit_run(self, lease: JobLease, worker_id: str, run: PreparedRun) -> UUID: ...
 
-    def publish(self, job_id: UUID, worker_id: str, run_id: UUID) -> dict[str, object]: ...
+    def materialize(self, job_id: UUID, worker_id: str, run_id: UUID) -> dict[str, object]: ...
+
+    def publish_next(self, worker_id: str) -> dict[str, object] | None: ...
+
+    def queue_status(self) -> QueueStatus: ...
 
     def maintain_retention(
         self,

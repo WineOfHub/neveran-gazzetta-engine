@@ -141,7 +141,8 @@ class PublicationConfig(StrictModel):
     storage: Literal["supabase"]
     supabase_url_env: str
     supabase_anon_key_env: str
-    atomic_rpc: Literal["publish_gazzetta_edition"]
+    materialize_rpc: Literal["materialize_gazzetta_edition"]
+    publish_rpc: Literal["publish_next_gazzetta_edition"]
     keep_last_valid_on_failure: Literal[True]
     player_reads_directly_from_supabase: Literal[True]
     player_calls_engine_api: Literal[False]

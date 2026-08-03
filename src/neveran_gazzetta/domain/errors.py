@@ -70,3 +70,10 @@ class PublicationConflict(GazzettaError):
 
     code = "publication_conflict"
     retriable = True
+
+
+class GenerationQueueEmpty(GazzettaError):
+    """Lo slot di pubblicazione è dovuto ma non c'è un'edizione pronta in coda."""
+
+    code = "queue_empty"
+    retriable = True
