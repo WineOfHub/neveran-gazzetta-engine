@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from neveran_gazzetta.application.contracts import JobLease, PreparedRun, QueueStatus
-from neveran_gazzetta.domain.errors import GenerationQueueEmpty
+from neveran_gazzetta.domain.errors import GenerationQueueEmpty, ProviderAuth, ProviderQuota
 from neveran_gazzetta.telemetry import TelemetrySink
 from neveran_gazzetta.worker.runner import GazzettaWorker, TickStatus
 
@@ -86,6 +86,15 @@ class Pipeline:
             snapshot={"schemaVersion": 1},
             content_hash="a" * 64,
         )
+
+
+class RaisingPipeline(Pipeline):
+    def __init__(self, exc: Exception) -> None:
+        super().__init__()
+        self._exc = exc
+
+    def execute(self, _lease: JobLease) -> PreparedRun:
+        raise self._exc
 
 
 class BlockingPipeline(Pipeline):
@@ -185,6 +194,34 @@ def test_generazione_rifiutata_non_materializza_e_programma_retry_limitato() -> 
     assert result.error_code == "invalid_generation"
     assert not control.materialized
     assert control.failed[0]["retryable"] is True
+
+
+def test_provider_quota_programma_available_at_invece_di_ritentare_subito() -> None:
+    control = Control(_lease())
+    pipeline = RaisingPipeline(ProviderQuota("limite raggiunto", retry_after_seconds=1800))
+
+    result = _worker(control, pipeline).tick()
+
+    assert result.status == TickStatus.FAILED
+    assert result.error_code == "provider_quota"
+    available_at = control.failed[0]["available_at"]
+    assert available_at is not None
+    assert available_at > datetime.now(UTC)
+
+
+def test_provider_auth_programma_available_at_come_provider_quota() -> None:
+    control = Control(_lease())
+    pipeline = RaisingPipeline(ProviderAuth("sessione Codex scaduta", retry_after_seconds=300))
+
+    result = _worker(control, pipeline).tick()
+
+    assert result.status == TickStatus.FAILED
+    assert result.error_code == "provider_auth"
+    available_at = control.failed[0]["available_at"]
+    assert available_at is not None
+    assert available_at > datetime.now(UTC)
+    # heartbeat degraded porta il codice errore in diagnostics (gazzetta_workers)
+    assert control.heartbeats[-1] == "degraded"
 
 
 def test_errore_di_rete_dopo_materialize_non_nasconde_quello_originale() -> None:

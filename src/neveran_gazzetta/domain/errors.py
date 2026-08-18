@@ -47,6 +47,20 @@ class ProviderQuota(GazzettaError):
         self.retry_after_seconds = retry_after_seconds
 
 
+class ProviderAuth(GazzettaError):
+    """La sessione di autenticazione del provider di generazione non è valida
+    (es. login Codex CLI scaduto). Retriable con backoff come ProviderQuota:
+    senza un retry_after esplicito, il worker ritenterebbe alla cadenza
+    normale invece di aspettare un nuovo login manuale."""
+
+    code = "provider_auth"
+    retriable = True
+
+    def __init__(self, message: str, *, retry_after_seconds: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+
+
 class InvalidGeneration(GazzettaError):
     """Un output generato non rispetta il contratto."""
 

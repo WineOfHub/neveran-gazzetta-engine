@@ -8,6 +8,7 @@ import httpx
 from neveran_gazzetta.domain.errors import InvalidGeneration, ProviderQuota, ProviderUnavailable
 from neveran_gazzetta.generation.models import GroqJsonResult, TokenUsage
 from neveran_gazzetta.generation.rate_limits import parse_rate_limit_reset
+from neveran_gazzetta.generation.schema_utils import strict_json_schema
 
 _RATE_HEADERS = (
     "retry-after",
@@ -31,29 +32,6 @@ def _safe_error_detail(response: httpx.Response) -> str:
     ]
     detail = " | ".join(parts)
     return detail[:500] if detail else f"HTTP {response.status_code}"
-
-
-def _strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
-    """Adatta lo schema Pydantic al sottoinsieme strict accettato da Cloudflare."""
-
-    normalized: dict[str, Any] = {}
-    for key, value in schema.items():
-        if key == "default":
-            continue
-        if isinstance(value, dict):
-            normalized[key] = _strict_schema(value)
-        elif isinstance(value, list):
-            normalized[key] = [
-                _strict_schema(item) if isinstance(item, dict) else item for item in value
-            ]
-        else:
-            normalized[key] = value
-
-    properties = normalized.get("properties")
-    if normalized.get("type") == "object" and isinstance(properties, dict):
-        normalized["required"] = list(properties)
-        normalized["additionalProperties"] = False
-    return normalized
 
 
 class CloudflareJsonClient:
@@ -107,7 +85,7 @@ class CloudflareJsonClient:
             "json_schema": {
                 "name": schema_name,
                 "strict": strict,
-                "schema": _strict_schema(schema) if strict else schema,
+                "schema": strict_json_schema(schema) if strict else schema,
             },
         }
         body: dict[str, Any] = {

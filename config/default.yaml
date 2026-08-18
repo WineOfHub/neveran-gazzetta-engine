@@ -62,14 +62,14 @@ retrieval:
   min_average_score: 0.20
 
 generation:
-  provider: cloudflare_workers_ai
+  provider: codex_cli
   api_key_env: CLOUDFLARE_API_TOKEN
   planner_model_env: GAZZETTA_PLANNER_MODEL
-  planner_model_default: "@cf/openai/gpt-oss-120b"
+  planner_model_default: "gpt-5.6-sol"
   writer_model_env: GAZZETTA_WRITER_MODEL
-  writer_model_default: "@cf/openai/gpt-oss-120b"
+  writer_model_default: "gpt-5.6-sol"
   verifier_model_env: GAZZETTA_VERIFIER_MODEL
-  verifier_model_default: "@cf/openai/gpt-oss-120b"
+  verifier_model_default: "gpt-5.6-sol"
   structured_planner_strict: true
   structured_writer_strict: true
   structured_verifier_strict: true
@@ -82,6 +82,12 @@ generation:
   max_rate_limit_wait_seconds: 180
   rate_limit_strategy: response_headers
   retry_on_invalid_content: false
+  codex_executable: codex
+  codex_sandbox: read-only
+  codex_timeout_seconds: 600
+  codex_auth_recheck_seconds: 300
+  codex_quota_cooldown_seconds: 1800
+  codex_reasoning_effort: medium
 
 artwork:
   provider: cloudflare_workers_ai

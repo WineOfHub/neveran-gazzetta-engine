@@ -9,6 +9,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from neveran_gazzetta.application.contracts import JobLease
+from neveran_gazzetta.generation.cloudflare import CloudflareJsonClient
+from neveran_gazzetta.generation.codex_cli import CodexCliJsonClient
 from neveran_gazzetta.runtime import build_live_runtime
 
 
@@ -96,16 +98,22 @@ def preflight_main() -> None:
     retrieval = runtime.retrieval.retrieve([
         "vita quotidiana commerci trasporti e cronache pubbliche di Neveran"
     ])
-    available = runtime.generation_client.available_model_ids()
     generation = runtime.config.runtime.generation
     configured = {
         runtime.config.secrets.planner_model or generation.planner_model_default,
         runtime.config.secrets.writer_model or generation.writer_model_default,
         runtime.config.secrets.verifier_model or generation.verifier_model_default,
     }
-    missing = sorted(configured - available)
-    if missing:
-        raise RuntimeError(f"Modelli Cloudflare non disponibili: {', '.join(missing)}")
+    client = runtime.generation_client
+    if isinstance(client, CodexCliJsonClient):
+        # Nessun catalogo modelli da interrogare come per Cloudflare: il
+        # controllo live equivalente è la sessione di login Codex CLI.
+        client.check_auth()
+    elif isinstance(client, CloudflareJsonClient):
+        available = client.available_model_ids()
+        missing = sorted(configured - available)
+        if missing:
+            raise RuntimeError(f"Modelli Cloudflare non disponibili: {', '.join(missing)}")
     print(json.dumps({
         "writeOperations": 0,
         "corpusReleaseId": retrieval.corpus_release_id,

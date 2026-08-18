@@ -104,7 +104,7 @@ class RetrievalConfig(StrictModel):
 
 
 class GenerationConfig(StrictModel):
-    provider: Literal["cloudflare_workers_ai"]
+    provider: Literal["cloudflare_workers_ai", "codex_cli"]
     api_key_env: str
     planner_model_env: str
     planner_model_default: str
@@ -124,6 +124,28 @@ class GenerationConfig(StrictModel):
     max_rate_limit_wait_seconds: PositiveInt
     rate_limit_strategy: Literal["response_headers"]
     retry_on_invalid_content: Literal[False]
+    # Solo per provider: codex_cli — nessun segreto qui (a differenza di ogni
+    # altro provider in questo file): il login Codex CLI vive su disco in
+    # ~/.codex/, mai in un env var. Vedi generation/codex_cli.py.
+    codex_executable: str | None = None
+    codex_sandbox: Literal["read-only"] | None = None
+    codex_timeout_seconds: PositiveInt | None = None
+    codex_auth_recheck_seconds: PositiveInt | None = None
+    codex_quota_cooldown_seconds: PositiveInt | None = None
+    codex_reasoning_effort: Literal["minimal", "low", "medium", "high", "xhigh"] | None = None
+
+    @model_validator(mode="after")
+    def campi_codex_coerenti_col_provider(self) -> GenerationConfig:
+        codex_fields = (
+            self.codex_executable, self.codex_sandbox, self.codex_timeout_seconds,
+            self.codex_auth_recheck_seconds, self.codex_quota_cooldown_seconds,
+            self.codex_reasoning_effort,
+        )
+        if self.provider == "codex_cli" and any(f is None for f in codex_fields):
+            raise ValueError("provider codex_cli richiede tutti i campi codex_*")
+        if self.provider == "cloudflare_workers_ai" and any(f is not None for f in codex_fields):
+            raise ValueError("i campi codex_* si usano solo con provider codex_cli")
+        return self
 
 
 class ArtworkRuntimeConfig(StrictModel):

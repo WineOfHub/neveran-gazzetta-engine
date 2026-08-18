@@ -19,6 +19,7 @@ from neveran_gazzetta.domain.errors import (
     GazzettaError,
     GenerationQueueEmpty,
     InvalidGeneration,
+    ProviderAuth,
     ProviderQuota,
 )
 from neveran_gazzetta.telemetry import NullTelemetry, TelemetrySink
@@ -90,6 +91,7 @@ class GazzettaWorker:
         pipeline: Pipeline,
         lease_renew_seconds: float,
         models: dict[str, str],
+        provider: str = "cloudflare_workers_ai",
         hostname: str | None = None,
         telemetry: TelemetrySink | None = None,
         retention_days: int = 90,
@@ -102,6 +104,7 @@ class GazzettaWorker:
         self._pipeline = pipeline
         self._lease_renew_seconds = lease_renew_seconds
         self._models = models
+        self._provider = provider
         self._hostname = hostname or socket.gethostname()
         self._telemetry = telemetry or NullTelemetry()
         self._retention_days = retention_days
@@ -255,7 +258,7 @@ class GazzettaWorker:
                     "run_validated",
                     status_code=200,
                     duration_ms=run.duration_ms,
-                    provider="cloudflare",
+                    provider=self._provider,
                     trace_id=trace_id,
                     units={
                         "type": "tokens",
@@ -321,7 +324,10 @@ class GazzettaWorker:
                 },
             )
             available_at = None
-            if isinstance(exc, ProviderQuota) and exc.retry_after_seconds is not None:
+            if (
+                isinstance(exc, (ProviderQuota, ProviderAuth))
+                and exc.retry_after_seconds is not None
+            ):
                 available_at = datetime.now(UTC) + timedelta(seconds=exc.retry_after_seconds)
             with suppress(Exception):
                 self._control.fail_job(

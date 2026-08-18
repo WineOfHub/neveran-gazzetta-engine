@@ -13,7 +13,8 @@ from neveran_gazzetta.artwork.supabase import SupabaseArtworkStore
 from neveran_gazzetta.config import AppConfig, load_config
 from neveran_gazzetta.domain.errors import ConfigurationError
 from neveran_gazzetta.generation.cloudflare import CloudflareJsonClient
-from neveran_gazzetta.generation.pipeline import GazzettaGenerationPipeline
+from neveran_gazzetta.generation.codex_cli import CodexCliJsonClient
+from neveran_gazzetta.generation.pipeline import GazzettaGenerationPipeline, GroqPort
 from neveran_gazzetta.retrieval.core_adapter import GazzettaRetrievalAdapter
 from neveran_gazzetta.retrieval.service import EditorialRetrievalService
 from neveran_gazzetta.storage.supabase import SupabaseRpcClient
@@ -39,7 +40,7 @@ class LiveRuntime:
     control: SupabaseRpcClient
     retrieval: GazzettaRetrievalAdapter
     pipeline: Pipeline
-    generation_client: CloudflareJsonClient
+    generation_client: GroqPort
     worker: GazzettaWorker
     telemetry: TelemetrySink
     artwork: SupabaseBackedArtworkService | None
@@ -99,10 +100,21 @@ def build_live_runtime(root: Path | None = None) -> LiveRuntime:
         email=_required(secrets.worker_email, "GAZZETTA_WORKER_EMAIL"),
         password=_secret(secrets.worker_password, "GAZZETTA_WORKER_PASSWORD"),
     )
-    generation_client = CloudflareJsonClient(
-        account_id=_required(secrets.cloudflare_account_id, "CLOUDFLARE_ACCOUNT_ID"),
-        api_token=_secret(secrets.cloudflare_api_token, "CLOUDFLARE_API_TOKEN"),
-    )
+    generation_client: GroqPort
+    if generation.provider == "codex_cli":
+        generation_client = CodexCliJsonClient(
+            executable=generation.codex_executable or "codex",
+            sandbox=generation.codex_sandbox or "read-only",
+            timeout_seconds=generation.codex_timeout_seconds or 600,
+            auth_recheck_seconds=generation.codex_auth_recheck_seconds or 300,
+            quota_cooldown_seconds=generation.codex_quota_cooldown_seconds or 1800,
+            reasoning_effort=generation.codex_reasoning_effort or "medium",
+        )
+    else:
+        generation_client = CloudflareJsonClient(
+            account_id=_required(secrets.cloudflare_account_id, "CLOUDFLARE_ACCOUNT_ID"),
+            api_token=_secret(secrets.cloudflare_api_token, "CLOUDFLARE_API_TOKEN"),
+        )
     artwork: SupabaseBackedArtworkService | None = None
     if config.editorial.artwork.generation_enabled:
         artwork_config = config.runtime.artwork
@@ -161,6 +173,7 @@ def build_live_runtime(root: Path | None = None) -> LiveRuntime:
         pipeline=pipeline,
         lease_renew_seconds=config.runtime.worker.heartbeat_seconds,
         models=models,
+        provider=generation.provider,
         telemetry=telemetry,
         retention_days=config.runtime.retention.detailed_run_logs_days,
         storyline_compaction_days=config.runtime.retention.storyline_compaction_days,
