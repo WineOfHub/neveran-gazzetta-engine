@@ -75,7 +75,7 @@ generation:
   structured_verifier_strict: true
   max_normal_calls: 3
   max_repair_calls: 1
-  max_total_tokens_per_edition: 35000
+  max_total_tokens_per_edition: 90000
   max_storyline_context_tokens: 500
   max_edition_output_tokens: 6500
   max_repair_output_tokens: 5000
