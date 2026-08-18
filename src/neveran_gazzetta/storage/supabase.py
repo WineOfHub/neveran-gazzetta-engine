@@ -66,7 +66,13 @@ class SupabaseRpcClient:
                 self._access_token = None
         return self._authenticate()
 
-    def _rpc(self, name: str, payload: dict[str, object]) -> Any:
+    def _rpc(
+        self,
+        name: str,
+        payload: dict[str, object],
+        *,
+        timeout: float | httpx._client.UseClientDefault = httpx.USE_CLIENT_DEFAULT,
+    ) -> Any:
         token = self._authenticate()
         try:
             response = self._client.post(
@@ -77,6 +83,7 @@ class SupabaseRpcClient:
                     "Content-Type": "application/json",
                 },
                 json=payload,
+                timeout=timeout,
             )
             if response.status_code == 401:
                 self._access_token = None
@@ -156,10 +163,14 @@ class SupabaseRpcClient:
             "p_content_hash": run.content_hash,
             "p_duration_ms": run.duration_ms,
         }
+        # Payload grande (snapshot completo, eventi, aggiornamenti storyline/entità) —
+        # osservato in produzione superare più volte il timeout di default da 30s
+        # (heredato dagli altri RPC, molto più piccoli), facendo scartare come
+        # "provider_unavailable" run che probabilmente erano comunque valide.
         try:
-            result = self._rpc("submit_gazzetta_run", payload)
+            result = self._rpc("submit_gazzetta_run", payload, timeout=90)
         except ProviderUnavailable:
-            result = self._rpc("submit_gazzetta_run", payload)
+            result = self._rpc("submit_gazzetta_run", payload, timeout=90)
         if not isinstance(result, str):
             raise ProviderUnavailable("ID run Supabase non valido")
         return UUID(result)
