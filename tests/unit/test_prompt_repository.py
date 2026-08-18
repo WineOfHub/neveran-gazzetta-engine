@@ -13,7 +13,7 @@ def test_prompt_hanno_nome_versione_e_contenuto() -> None:
 
     expected_versions = {
         "event_planner.system.md": "gazzetta-event-planner-v6",
-        "newspaper_writer.system.md": "gazzetta-newspaper-writer-v8",
+        "newspaper_writer.system.md": "gazzetta-newspaper-writer-v9",
         "repair.system.md": "gazzetta-repair-v5",
         "verifier.system.md": "gazzetta-verifier-v3",
     }
