@@ -12,7 +12,7 @@ from neveran_gazzetta.artwork.service import SupabaseBackedArtworkService
 from neveran_gazzetta.artwork.supabase import SupabaseArtworkStore
 from neveran_gazzetta.config import AppConfig, load_config
 from neveran_gazzetta.domain.errors import ConfigurationError
-from neveran_gazzetta.generation.groq import GroqJsonClient
+from neveran_gazzetta.generation.cloudflare import CloudflareJsonClient
 from neveran_gazzetta.generation.pipeline import GazzettaGenerationPipeline
 from neveran_gazzetta.retrieval.core_adapter import GazzettaRetrievalAdapter
 from neveran_gazzetta.retrieval.service import EditorialRetrievalService
@@ -39,7 +39,7 @@ class LiveRuntime:
     control: SupabaseRpcClient
     retrieval: GazzettaRetrievalAdapter
     pipeline: Pipeline
-    groq: GroqJsonClient
+    generation_client: CloudflareJsonClient
     worker: GazzettaWorker
     telemetry: TelemetrySink
     artwork: SupabaseBackedArtworkService | None
@@ -99,7 +99,10 @@ def build_live_runtime(root: Path | None = None) -> LiveRuntime:
         email=_required(secrets.worker_email, "GAZZETTA_WORKER_EMAIL"),
         password=_secret(secrets.worker_password, "GAZZETTA_WORKER_PASSWORD"),
     )
-    groq = GroqJsonClient(api_key=_secret(secrets.groq_api_key, "GROQ_API_KEY"))
+    generation_client = CloudflareJsonClient(
+        account_id=_required(secrets.cloudflare_account_id, "CLOUDFLARE_ACCOUNT_ID"),
+        api_token=_secret(secrets.cloudflare_api_token, "CLOUDFLARE_API_TOKEN"),
+    )
     artwork: SupabaseBackedArtworkService | None = None
     if config.editorial.artwork.generation_enabled:
         artwork_config = config.runtime.artwork
@@ -128,7 +131,7 @@ def build_live_runtime(root: Path | None = None) -> LiveRuntime:
         state_provider=control,
         retrieval_adapter=retrieval,
         retrieval_service=retrieval_service,
-        groq=groq,
+        groq=generation_client,
         prompts_root=project_root / "prompts",
         artwork_generator=artwork,
     )
@@ -148,9 +151,9 @@ def build_live_runtime(root: Path | None = None) -> LiveRuntime:
     else:
         telemetry = NullTelemetry()
     models = {
-        "planner": secrets.groq_planner_model or generation.planner_model_default,
-        "writer": secrets.groq_writer_model or generation.writer_model_default,
-        "verifier": secrets.groq_verifier_model or generation.verifier_model_default,
+        "planner": secrets.planner_model or generation.planner_model_default,
+        "writer": secrets.writer_model or generation.writer_model_default,
+        "verifier": secrets.verifier_model or generation.verifier_model_default,
     }
     worker = GazzettaWorker(
         worker_id=os.getenv("GAZZETTA_WORKER_ID", "neveranforge-gazzetta-1"),
@@ -164,4 +167,6 @@ def build_live_runtime(root: Path | None = None) -> LiveRuntime:
         recurring_inactive_issues=config.runtime.retention.recurring_inactive_issues,
         nonrecurring_keep_issues=config.runtime.retention.nonrecurring_keep_issues,
     )
-    return LiveRuntime(config, control, retrieval, pipeline, groq, worker, telemetry, artwork)
+    return LiveRuntime(
+        config, control, retrieval, pipeline, generation_client, worker, telemetry, artwork
+    )

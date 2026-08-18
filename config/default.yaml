@@ -62,21 +62,23 @@ retrieval:
   min_average_score: 0.20
 
 generation:
-  provider: groq
-  api_key_env: GROQ_API_KEY
-  planner_model_env: GROQ_PLANNER_MODEL
-  planner_model_default: openai/gpt-oss-120b
-  writer_model_env: GROQ_WRITER_MODEL
-  writer_model_default: openai/gpt-oss-120b
-  verifier_model_env: GROQ_VERIFIER_MODEL
-  verifier_model_default: openai/gpt-oss-120b
+  provider: cloudflare_workers_ai
+  api_key_env: CLOUDFLARE_API_TOKEN
+  planner_model_env: GAZZETTA_PLANNER_MODEL
+  planner_model_default: "@cf/openai/gpt-oss-120b"
+  writer_model_env: GAZZETTA_WRITER_MODEL
+  writer_model_default: "@cf/openai/gpt-oss-120b"
+  verifier_model_env: GAZZETTA_VERIFIER_MODEL
+  verifier_model_default: "@cf/openai/gpt-oss-120b"
   structured_planner_strict: true
+  structured_writer_strict: true
   structured_verifier_strict: true
   max_normal_calls: 3
   max_repair_calls: 1
   max_total_tokens_per_edition: 35000
   max_storyline_context_tokens: 500
-  max_edition_output_tokens: 2500
+  max_edition_output_tokens: 6500
+  max_repair_output_tokens: 5000
   max_rate_limit_wait_seconds: 180
   rate_limit_strategy: response_headers
   retry_on_invalid_content: false

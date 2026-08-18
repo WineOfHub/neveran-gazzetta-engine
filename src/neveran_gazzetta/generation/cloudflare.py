@@ -10,12 +10,6 @@ from neveran_gazzetta.generation.models import GroqJsonResult, TokenUsage
 from neveran_gazzetta.generation.rate_limits import parse_rate_limit_reset
 
 _RATE_HEADERS = (
-    "x-ratelimit-limit-requests",
-    "x-ratelimit-remaining-requests",
-    "x-ratelimit-limit-tokens",
-    "x-ratelimit-remaining-tokens",
-    "x-ratelimit-reset-requests",
-    "x-ratelimit-reset-tokens",
     "retry-after",
 )
 
@@ -27,20 +21,20 @@ def _safe_error_detail(response: httpx.Response) -> str:
         body = response.json()
     except (json.JSONDecodeError, TypeError, ValueError):
         return f"HTTP {response.status_code}"
-    error = body.get("error") if isinstance(body, dict) else None
-    if not isinstance(error, dict):
+    errors = body.get("errors") if isinstance(body, dict) else None
+    if not isinstance(errors, list) or not errors:
         return f"HTTP {response.status_code}"
     parts = [
-        str(error[key]).strip()
-        for key in ("message", "type", "code")
-        if error.get(key) not in (None, "")
+        str(item.get("message", "")).strip()
+        for item in errors
+        if isinstance(item, dict) and item.get("message")
     ]
     detail = " | ".join(parts)
     return detail[:500] if detail else f"HTTP {response.status_code}"
 
 
 def _strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
-    """Adatta lo schema Pydantic al sottoinsieme strict accettato da Groq."""
+    """Adatta lo schema Pydantic al sottoinsieme strict accettato da Cloudflare."""
 
     normalized: dict[str, Any] = {}
     for key, value in schema.items():
@@ -62,33 +56,40 @@ def _strict_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-class GroqJsonClient:
+class CloudflareJsonClient:
     def __init__(
         self,
         *,
-        api_key: str,
+        account_id: str,
+        api_token: str,
         client: httpx.Client | None = None,
-        base_url: str = "https://api.groq.com/openai/v1",
+        base_url: str = "https://api.cloudflare.com/client/v4",
     ) -> None:
-        if not api_key:
-            raise ValueError("GROQ_API_KEY obbligatoria")
-        self._api_key = api_key
-        self._client = client or httpx.Client(timeout=90)
-        self._base_url = base_url.rstrip("/")
+        if not account_id:
+            raise ValueError("CLOUDFLARE_ACCOUNT_ID obbligatorio")
+        if not api_token:
+            raise ValueError("CLOUDFLARE_API_TOKEN obbligatorio")
+        self._api_token = api_token
+        self._client = client or httpx.Client(timeout=120)
+        self._base_url = f"{base_url.rstrip('/')}/accounts/{account_id}/ai"
 
     def available_model_ids(self) -> frozenset[str]:
         try:
             response = self._client.get(
-                f"{self._base_url}/models",
-                headers={"Authorization": f"Bearer {self._api_key}"},
+                f"{self._base_url}/models/search",
+                headers={"Authorization": f"Bearer {self._api_token}"},
+                params={"per_page": 100},
             )
             response.raise_for_status()
-            data = response.json()["data"]
+            body = response.json()
+            if not body.get("success"):
+                raise ValueError("success=false")
+            data = body["result"]
             if not isinstance(data, list):
-                raise TypeError("data non lista")
-            return frozenset(str(item["id"]) for item in data)
+                raise TypeError("result non lista")
+            return frozenset(str(item["name"]) for item in data)
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
-            raise ProviderUnavailable("Elenco modelli Groq non disponibile") from exc
+            raise ProviderUnavailable("Elenco modelli Cloudflare non disponibile") from exc
 
     def complete_json(
         self,
@@ -101,27 +102,15 @@ class GroqJsonClient:
         max_tokens: int,
         strict: bool,
     ) -> GroqJsonResult:
-        response_format: dict[str, object]
-        if strict:
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": schema_name,
-                    "strict": True,
-                    "schema": _strict_schema(schema),
-                },
-            }
-        else:
-            response_format = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": schema_name,
-                    "strict": False,
-                    "schema": schema,
-                },
-            }
+        response_format: dict[str, object] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": schema_name,
+                "strict": strict,
+                "schema": _strict_schema(schema) if strict else schema,
+            },
+        }
         body: dict[str, Any] = {
-            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {
@@ -130,54 +119,55 @@ class GroqJsonClient:
                 },
             ],
             "temperature": 0.7,
-            "max_completion_tokens": max_tokens,
+            "max_tokens": max_tokens,
             "response_format": response_format,
         }
         if "gpt-oss" in model:
             body["reasoning_effort"] = "low"
         try:
             response = self._client.post(
-                f"{self._base_url}/chat/completions",
+                f"{self._base_url}/run/{model}",
                 headers={
-                    "Authorization": f"Bearer {self._api_key}",
+                    "Authorization": f"Bearer {self._api_token}",
                     "Content-Type": "application/json",
                 },
                 json=body,
             )
         except httpx.HTTPError as exc:
-            raise ProviderUnavailable("Groq non raggiungibile") from exc
+            raise ProviderUnavailable("Cloudflare Workers AI non raggiungibile") from exc
         if response.status_code == 429:
-            seconds = parse_rate_limit_reset(
-                response.headers.get("retry-after")
-                or response.headers.get("x-ratelimit-reset-tokens")
-                or response.headers.get("x-ratelimit-reset-requests")
-            )
-            diagnostics = " ".join(
-                f"{name}={response.headers[name]}"
-                for name in _RATE_HEADERS
-                if name in response.headers
-            )
+            seconds = parse_rate_limit_reset(response.headers.get("retry-after"))
             raise ProviderQuota(
-                f"Rate limit Groq schema={schema_name} model={model} "
-                f"retry_after={seconds} {diagnostics}",
+                f"Rate limit Cloudflare schema={schema_name} model={model} "
+                f"retry_after={seconds} {_safe_error_detail(response)}",
                 retry_after_seconds=seconds,
             )
         if response.status_code in {401, 403}:
-            raise ProviderUnavailable("Groq non autorizzato o modello non abilitato")
+            raise ProviderUnavailable("Cloudflare non autorizzato o modello non abilitato")
         if response.status_code >= 500:
-            raise ProviderUnavailable(f"Groq ha risposto {response.status_code}")
+            raise ProviderUnavailable(f"Cloudflare ha risposto {response.status_code}")
         if 400 <= response.status_code < 500:
-            raise InvalidGeneration(f"Richiesta Groq rifiutata: {_safe_error_detail(response)}")
+            raise InvalidGeneration(
+                f"Richiesta Cloudflare rifiutata: {_safe_error_detail(response)}"
+            )
         try:
             response.raise_for_status()
             raw = response.json()
-            content = raw["choices"][0]["message"]["content"]
+            if not raw.get("success"):
+                raise InvalidGeneration(
+                    f"Cloudflare ha rifiutato la generazione: {_safe_error_detail(response)}"
+                )
+            result = raw["result"]
+            content = result["choices"][0]["message"]["content"]
             payload = json.loads(content) if isinstance(content, str) else content
-            usage = raw.get("usage") or {}
+            usage = result.get("usage") or {}
             if not isinstance(payload, dict):
                 raise TypeError("payload JSON non oggetto")
         except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-            raise InvalidGeneration("Output JSON Groq invalido") from exc
+            snippet = response.text[:300] if response is not None else "n/d"
+            raise InvalidGeneration(
+                f"Output JSON Cloudflare invalido ({type(exc).__name__}: {exc}) raw={snippet!r}"
+            ) from exc
         rate_limits: dict[str, str | int | float | None] = {
             name: response.headers.get(name) for name in _RATE_HEADERS if name in response.headers
         }

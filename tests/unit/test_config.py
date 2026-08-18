@@ -16,7 +16,7 @@ def test_config_valida_senza_segreti_in_sviluppo() -> None:
     assert config.runtime.scheduler.timezone == "Europe/Rome"
     assert config.editorial.policy_version == "gazzetta-editorial-v1"
     assert len(config.policy_hash) == 64
-    assert config.secrets.groq_api_key is None
+    assert config.secrets.cloudflare_api_token is None
 
 
 def test_config_live_fallisce_se_mancano_segreti() -> None:

@@ -12,10 +12,10 @@ def test_prompt_hanno_nome_versione_e_contenuto() -> None:
     repository = PromptRepository(ROOT / "prompts")
 
     expected_versions = {
-        "event_planner.system.md": "gazzetta-event-planner-v5",
-        "newspaper_writer.system.md": "gazzetta-newspaper-writer-v5",
+        "event_planner.system.md": "gazzetta-event-planner-v6",
+        "newspaper_writer.system.md": "gazzetta-newspaper-writer-v7",
         "repair.system.md": "gazzetta-repair-v5",
-        "verifier.system.md": "gazzetta-verifier-v2",
+        "verifier.system.md": "gazzetta-verifier-v3",
     }
     for filename, expected_version in expected_versions.items():
         prompt = repository.load(filename)

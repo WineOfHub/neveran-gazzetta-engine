@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -66,6 +67,9 @@ from neveran_gazzetta.retrieval.palette import GazzettaLorePalette
 from neveran_gazzetta.retrieval.service import EditorialRetrievalService
 
 _ENTITY_NAMESPACE = UUID("72ff51ee-d418-48bb-a4d8-2d1f87498528")
+_TPM_TOO_LARGE = re.compile(r"tokens per minute \(TPM\): Limit (\d+), Requested (\d+)")
+_TPM_SAFETY_MARGIN = 150
+_MIN_COMPLETION_TOKENS = 500
 ModelT = TypeVar("ModelT", bound=BaseModel)
 class GroqPort(Protocol):
     def complete_json(
@@ -631,6 +635,7 @@ class GazzettaGenerationPipeline:
                 time.sleep(retry_after + 0.05)
         prompt = self._prompts.load(prompt_file)
         result: GroqJsonResult | None = None
+        effective_max_tokens = max_tokens
         for attempt in range(2):
             try:
                 result = self._groq.complete_json(
@@ -642,7 +647,7 @@ class GazzettaGenerationPipeline:
                         by_alias=True,
                         mode="serialization",
                     ),
-                    max_tokens=max_tokens,
+                    max_tokens=effective_max_tokens,
                     strict=strict,
                 )
                 break
@@ -652,6 +657,16 @@ class GazzettaGenerationPipeline:
                 if attempt == 1 or retry_after is None or retry_after > max_wait:
                     raise
                 time.sleep(retry_after + 0.05)
+            except InvalidGeneration as exc:
+                match = _TPM_TOO_LARGE.search(str(exc))
+                if attempt == 1 or match is None:
+                    raise
+                limit, requested = int(match.group(1)), int(match.group(2))
+                overflow = requested - limit
+                effective_max_tokens = max(
+                    effective_max_tokens - overflow - _TPM_SAFETY_MARGIN,
+                    _MIN_COMPLETION_TOKENS,
+                )
         assert result is not None
         calls.append(result)
         try:
@@ -686,15 +701,15 @@ class GazzettaGenerationPipeline:
                 "La policy del job non coincide con quella installata nel worker"
             )
         planner_model = (
-            self._config.secrets.groq_planner_model
+            self._config.secrets.planner_model
             or self._config.runtime.generation.planner_model_default
         )
         writer_model = (
-            self._config.secrets.groq_writer_model
+            self._config.secrets.writer_model
             or self._config.runtime.generation.writer_model_default
         )
         verifier_model = (
-            self._config.secrets.groq_verifier_model
+            self._config.secrets.verifier_model
             or self._config.runtime.generation.verifier_model_default
         )
         state = self._state_provider.get_editorial_state()
@@ -728,7 +743,7 @@ class GazzettaGenerationPipeline:
             prompt_file="event_planner.system.md",
             user_payload=self._planner_payload(plan, palette, state, prompt_entities),
             response_model=EventPlanResponse,
-            max_tokens=3200,
+            max_tokens=4800,
             strict=self._config.runtime.generation.structured_planner_strict,
         )
         assert isinstance(event_response, EventPlanResponse)
@@ -756,7 +771,7 @@ class GazzettaGenerationPipeline:
             user_payload=writer_payload,
             response_model=EditionDraftResponse,
             max_tokens=self._config.runtime.generation.max_edition_output_tokens,
-            strict=False,
+            strict=self._config.runtime.generation.structured_writer_strict,
         )
         assert isinstance(draft_response, EditionDraftResponse)
         edition = _materialize_edition(
@@ -785,8 +800,8 @@ class GazzettaGenerationPipeline:
                     ],
                 },
                 response_model=EditionDraftResponse,
-                max_tokens=self._config.runtime.generation.max_edition_output_tokens,
-                strict=False,
+                max_tokens=self._config.runtime.generation.max_repair_output_tokens,
+                strict=self._config.runtime.generation.structured_writer_strict,
             )
             assert isinstance(repair_response, EditionDraftResponse)
             edition = _materialize_edition(
@@ -817,7 +832,7 @@ class GazzettaGenerationPipeline:
                 "sourceRefs": [item.chunk_id for item in palette.evidence],
             },
             response_model=VerifierVerdict,
-            max_tokens=700,
+            max_tokens=1200,
             strict=self._config.runtime.generation.structured_verifier_strict,
         )
         assert isinstance(verdict, VerifierVerdict)

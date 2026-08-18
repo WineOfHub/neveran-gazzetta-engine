@@ -96,16 +96,16 @@ def preflight_main() -> None:
     retrieval = runtime.retrieval.retrieve([
         "vita quotidiana commerci trasporti e cronache pubbliche di Neveran"
     ])
-    available = runtime.groq.available_model_ids()
+    available = runtime.generation_client.available_model_ids()
     generation = runtime.config.runtime.generation
     configured = {
-        runtime.config.secrets.groq_planner_model or generation.planner_model_default,
-        runtime.config.secrets.groq_writer_model or generation.writer_model_default,
-        runtime.config.secrets.groq_verifier_model or generation.verifier_model_default,
+        runtime.config.secrets.planner_model or generation.planner_model_default,
+        runtime.config.secrets.writer_model or generation.writer_model_default,
+        runtime.config.secrets.verifier_model or generation.verifier_model_default,
     }
     missing = sorted(configured - available)
     if missing:
-        raise RuntimeError(f"Modelli Groq non disponibili: {', '.join(missing)}")
+        raise RuntimeError(f"Modelli Cloudflare non disponibili: {', '.join(missing)}")
     print(json.dumps({
         "writeOperations": 0,
         "corpusReleaseId": retrieval.corpus_release_id,

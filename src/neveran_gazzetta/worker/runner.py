@@ -255,7 +255,7 @@ class GazzettaWorker:
                     "run_validated",
                     status_code=200,
                     duration_ms=run.duration_ms,
-                    provider="groq",
+                    provider="cloudflare",
                     trace_id=trace_id,
                     units={
                         "type": "tokens",

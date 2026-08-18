@@ -104,7 +104,7 @@ class RetrievalConfig(StrictModel):
 
 
 class GenerationConfig(StrictModel):
-    provider: Literal["groq"]
+    provider: Literal["cloudflare_workers_ai"]
     api_key_env: str
     planner_model_env: str
     planner_model_default: str
@@ -113,12 +113,14 @@ class GenerationConfig(StrictModel):
     verifier_model_env: str
     verifier_model_default: str
     structured_planner_strict: Literal[True]
+    structured_writer_strict: Literal[True]
     structured_verifier_strict: Literal[True]
     max_normal_calls: Annotated[int, Field(ge=1, le=3)]
     max_repair_calls: Annotated[int, Field(ge=0, le=1)]
     max_total_tokens_per_edition: PositiveInt
     max_storyline_context_tokens: PositiveInt
     max_edition_output_tokens: PositiveInt
+    max_repair_output_tokens: PositiveInt
     max_rate_limit_wait_seconds: PositiveInt
     rate_limit_strategy: Literal["response_headers"]
     retry_on_invalid_content: Literal[False]
@@ -328,10 +330,11 @@ class SecretsConfig(StrictModel):
     supabase_anon_key: SecretStr | None = None
     worker_email: str | None = None
     worker_password: SecretStr | None = None
-    groq_api_key: SecretStr | None = None
-    groq_planner_model: str | None = None
-    groq_writer_model: str | None = None
-    groq_verifier_model: str | None = None
+    cloudflare_account_id: str | None = None
+    cloudflare_api_token: SecretStr | None = None
+    planner_model: str | None = None
+    writer_model: str | None = None
+    verifier_model: str | None = None
     jina_api_key: SecretStr | None = None
     jina_embedding_model: str | None = None
     jina_query_task: str | None = None
@@ -359,7 +362,8 @@ REQUIRED_LIVE_ENV = (
     "SUPABASE_ANON_KEY",
     "GAZZETTA_WORKER_EMAIL",
     "GAZZETTA_WORKER_PASSWORD",
-    "GROQ_API_KEY",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN",
     "JINA_API_KEY",
     "QDRANT_URL",
     "QDRANT_API_KEY",
@@ -445,10 +449,11 @@ def load_config(
         supabase_anon_key=_optional(env, "SUPABASE_ANON_KEY"),
         worker_email=_optional(env, "GAZZETTA_WORKER_EMAIL"),
         worker_password=_optional(env, "GAZZETTA_WORKER_PASSWORD"),
-        groq_api_key=_optional(env, "GROQ_API_KEY"),
-        groq_planner_model=_optional(env, "GROQ_PLANNER_MODEL"),
-        groq_writer_model=_optional(env, "GROQ_WRITER_MODEL"),
-        groq_verifier_model=_optional(env, "GROQ_VERIFIER_MODEL"),
+        cloudflare_account_id=_optional(env, "CLOUDFLARE_ACCOUNT_ID"),
+        cloudflare_api_token=_optional(env, "CLOUDFLARE_API_TOKEN"),
+        planner_model=_optional(env, "GAZZETTA_PLANNER_MODEL"),
+        writer_model=_optional(env, "GAZZETTA_WRITER_MODEL"),
+        verifier_model=_optional(env, "GAZZETTA_VERIFIER_MODEL"),
         jina_api_key=_optional(env, "JINA_API_KEY"),
         jina_embedding_model=_optional(env, "JINA_EMBED_MODEL"),
         jina_query_task=_optional(env, "JINA_TASK_QUERY"),
