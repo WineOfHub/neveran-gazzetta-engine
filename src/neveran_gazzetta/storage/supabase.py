@@ -95,8 +95,18 @@ class SupabaseRpcClient:
             return response.json() if response.content else None
         except (ProviderUnavailable, PublicationConflict):
             raise
+        except httpx.HTTPStatusError as exc:
+            # Distinto dal ramo generico sotto: qui la risposta è arrivata (status
+            # code + corpo reali), non un errore di trasporto — il messaggio deve
+            # portare quel dettaglio, non genericizzarlo in "non disponibile".
+            raise ProviderUnavailable(
+                f"RPC Supabase {name} ha risposto {exc.response.status_code}: "
+                f"{exc.response.text[:300]}"
+            ) from exc
         except (httpx.HTTPError, TypeError, ValueError) as exc:
-            raise ProviderUnavailable(f"RPC Supabase {name} non disponibile") from exc
+            raise ProviderUnavailable(
+                f"RPC Supabase {name} non disponibile ({type(exc).__name__}: {exc})"
+            ) from exc
 
     def heartbeat(
         self,
