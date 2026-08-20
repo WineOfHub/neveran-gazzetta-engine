@@ -53,6 +53,7 @@ def build_editorial_queries(
     *,
     storylines: list[StorylineMemory],
     topic_hints: list[str] | None = None,
+    settlement_names: tuple[str, ...] = (),
 ) -> tuple[EditorialQuery, ...]:
     rng = random.Random(int(plan.seed, 16))
     hints = [item.strip() for item in topic_hints or [] if item.strip()]
@@ -66,6 +67,8 @@ def build_editorial_queries(
     ):
         base = rng.choice(_BASE_QUERIES[purpose])
         hint = hints.pop() if hints else ""
+        if purpose == QueryPurpose.PLACE and settlement_names:
+            hint = f"{hint} {' '.join(settlement_names)}".strip()
         queries.append(EditorialQuery(purpose=purpose, text=f"{base} {hint}".strip()))
 
     selected_storyline_ids = {

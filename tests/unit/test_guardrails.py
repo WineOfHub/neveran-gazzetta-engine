@@ -9,6 +9,7 @@ from neveran_gazzetta.generation.guardrails import (
     normalize_loop_usage,
     validate_event_set,
     validate_loop_usage,
+    validate_settlement_location,
 )
 from neveran_gazzetta.generation.validators import truncate_to_word_limit, word_count
 
@@ -70,6 +71,47 @@ def test_invenzione_profonda_e_assenza_grounding_sono_bloccanti() -> None:
 
     assert "forbidden_deep_invention" in codes
     assert "ungrounded_event" in codes
+
+
+def test_settlement_location_riconosce_nome_breve_dentro_titolo_con_sottotitolo() -> None:
+    allowed = frozenset({"Ael Sadurith — La Città della Concordia"})
+
+    assert validate_settlement_location("Ael Sadurith", allowed_settlement_names=allowed)
+
+
+def test_settlement_location_riconosce_colore_aggiunto_al_nome() -> None:
+    allowed = frozenset({"Romolia"})
+
+    assert validate_settlement_location(
+        "Romolia — banchina nord", allowed_settlement_names=allowed
+    )
+
+
+def test_settlement_location_rifiuta_insediamento_non_elencato() -> None:
+    allowed = frozenset({"Romolia", "Clovertia"})
+
+    assert not validate_settlement_location("Un villaggio inventato", allowed_settlement_names=allowed)
+
+
+def test_evento_con_luogo_non_reale_e_bloccante_quando_ci_sono_insediamenti_consentiti() -> None:
+    events = [_event(slot) for slot in SLOTS]
+    events[0] = events[0].model_copy(update={"location": "Villaggio Mai Esistito"})
+
+    codes = {
+        issue.code
+        for issue in validate_event_set(
+            events, allowed_settlement_names=frozenset({"Clovertia"})
+        )
+    }
+
+    assert "invented_settlement_location" in codes
+
+
+def test_nessun_controllo_di_luogo_senza_insediamenti_consentiti_configurati() -> None:
+    events = [_event(slot) for slot in SLOTS]
+    events[0] = events[0].model_copy(update={"location": "Villaggio Mai Esistito"})
+
+    assert validate_event_set(events) == ()
 
 
 def test_slot_principale_richiede_una_fonte_forte() -> None:

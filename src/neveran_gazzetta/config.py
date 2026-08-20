@@ -365,6 +365,7 @@ class SecretsConfig(StrictModel):
     qdrant_collection: str | None = None
     embedding_dimension: int | None = None
     corpus_release_manifest_path: str | None = None
+    knowledge_root: str | None = None
     monitor_url: str | None = None
     monitor_token: SecretStr | None = None
     api_token: SecretStr | None = None
@@ -484,6 +485,7 @@ def load_config(
         qdrant_collection=_optional(env, "QDRANT_COLLECTION"),
         embedding_dimension=_optional_int(env, "EMBED_DIM"),
         corpus_release_manifest_path=_optional(env, "CORPUS_RELEASE_MANIFEST_PATH"),
+        knowledge_root=_optional(env, "NEVERAN_KNOWLEDGE_ROOT"),
         monitor_url=_optional(env, "NEVERAN_MONITOR_URL"),
         monitor_token=_optional(env, "NEVERAN_MONITOR_TOKEN"),
         api_token=_optional(env, "GAZZETTA_API_TOKEN"),

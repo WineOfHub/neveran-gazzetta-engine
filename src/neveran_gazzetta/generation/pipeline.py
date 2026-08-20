@@ -748,7 +748,10 @@ class GazzettaGenerationPipeline:
         )
         assert isinstance(event_response, EventPlanResponse)
         events = _materialize_events(event_response, plan)
-        event_issues = validate_event_set(list(events))
+        event_issues = validate_event_set(
+            list(events),
+            allowed_settlement_names=frozenset(palette.settlement_names),
+        )
         if event_issues:
             codes = ",".join(sorted({item.code for item in event_issues}))
             raise InvalidGeneration(f"Eventi rifiutati: {codes}")

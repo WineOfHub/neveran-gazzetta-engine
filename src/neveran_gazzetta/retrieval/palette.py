@@ -38,6 +38,7 @@ class GazzettaLorePalette(BaseModel):
     constraints: tuple[str, ...]
     terminology: tuple[str, ...]
     possible_source_seeds: tuple[str, ...]
+    settlement_names: tuple[str, ...]
     gaps: tuple[str, ...]
     approximate_tokens: int = Field(gt=0)
 
@@ -108,6 +109,7 @@ def build_lore_palette(
     min_chunks: int,
     min_documents: int,
     min_average_score: float,
+    settlement_names: tuple[str, ...] = (),
 ) -> GazzettaLorePalette:
     evidence = _build_evidence(
         result.chunks,
@@ -123,10 +125,23 @@ def build_lore_palette(
     ):
         raise NoEvidence("Grounding complessivo insufficiente per una prima pagina")
 
+    if settlement_names:
+        settlement_constraint = (
+            "I luoghi di insediamento (città, villaggi) citati come ambientazione di un evento "
+            "devono essere scelti esclusivamente tra questi, reali nella lore di Neveran: "
+            f"{', '.join(settlement_names)}. Non inventare mai un nuovo insediamento."
+        )
+    else:
+        settlement_constraint = (
+            "Nessun insediamento reale è disponibile per questa edizione: non nominare città o "
+            "villaggi specifici come ambientazione di un evento, resta su descrizioni generiche."
+        )
     constraints = (
         "Gli eventi sono effimeri, decorativi e non canonici.",
         "Non inventare come reali divinità, cosmologia o poteri che piegano il mondo.",
-        "Le invenzioni ammesse riguardano persone comuni, società e luoghi locali minori.",
+        settlement_constraint,
+        "Le invenzioni ammesse riguardano persone comuni, società locale e micro-luoghi interni "
+        "a un insediamento reale (taverne, vie, botteghe, quartieri senza nome proprio).",
         "Le fake deliberate sono al massimo una e soltanto in minor o brief.",
         "Lead, breaking e major devono essere attendibili.",
     )
@@ -148,6 +163,7 @@ def build_lore_palette(
         constraints=constraints,
         terminology=terminology,
         possible_source_seeds=sources,
+        settlement_names=settlement_names,
         gaps=(),
         approximate_tokens=used_tokens,
     )

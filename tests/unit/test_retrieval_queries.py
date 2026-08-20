@@ -38,6 +38,16 @@ def test_query_editoriali_restano_separate_per_scopo() -> None:
     assert all(len(query.text) <= 240 for query in queries)
 
 
+def test_query_place_include_gli_insediamenti_estratti_per_l_edizione() -> None:
+    queries = build_editorial_queries(
+        _plan(), storylines=[], settlement_names=("Romolia", "Lughat")
+    )
+
+    place_query = next(query for query in queries if query.purpose == QueryPurpose.PLACE)
+    assert "Romolia" in place_query.text
+    assert "Lughat" in place_query.text
+
+
 def test_query_plan_e_riproducibile() -> None:
     first = build_editorial_queries(_plan(), storylines=[], topic_hints=["A", "B", "C"])
     second = build_editorial_queries(_plan(), storylines=[], topic_hints=["A", "B", "C"])

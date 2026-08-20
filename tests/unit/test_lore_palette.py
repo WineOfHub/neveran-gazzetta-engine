@@ -96,6 +96,50 @@ def test_palette_prioritizza_documenti_distinti_e_riserva_spazio_ai_chunk() -> N
     assert all(item.approximate_tokens <= 300 for item in palette.evidence)
 
 
+def test_constraint_elenca_gli_insediamenti_consentiti_e_vieta_l_invenzione() -> None:
+    result = GazzettaRetrievalResult(
+        chunks=tuple(_chunk(index) for index in range(3)),
+        corpus_release_id="release-a",
+        queries=("tema",),
+    )
+
+    palette = build_lore_palette(
+        result,
+        _queries(),
+        token_budget=1000,
+        min_chunks=2,
+        min_documents=2,
+        min_average_score=0.2,
+        settlement_names=("Romolia", "Lughat"),
+    )
+
+    assert palette.settlement_names == ("Romolia", "Lughat")
+    assert any(
+        "Romolia" in item and "Lughat" in item and "Non inventare mai un nuovo insediamento" in item
+        for item in palette.constraints
+    )
+
+
+def test_constraint_senza_insediamenti_vieta_di_nominarne_di_specifici() -> None:
+    result = GazzettaRetrievalResult(
+        chunks=tuple(_chunk(index) for index in range(3)),
+        corpus_release_id="release-a",
+        queries=("tema",),
+    )
+
+    palette = build_lore_palette(
+        result,
+        _queries(),
+        token_budget=1000,
+        min_chunks=2,
+        min_documents=2,
+        min_average_score=0.2,
+    )
+
+    assert palette.settlement_names == ()
+    assert any("Nessun insediamento reale" in item for item in palette.constraints)
+
+
 def test_grounding_insufficiente_fallisce_chiuso() -> None:
     result = GazzettaRetrievalResult(
         chunks=(_chunk(1, score=0.1),),

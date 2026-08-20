@@ -142,6 +142,7 @@ class RetrievalService:
             constraints=("Non inventare divinità.",),
             terminology=("Loop è un materiale.",),
             possible_source_seeds=("lore.1",),
+            settlement_names=(),
             gaps=(),
             approximate_tokens=16,
         )

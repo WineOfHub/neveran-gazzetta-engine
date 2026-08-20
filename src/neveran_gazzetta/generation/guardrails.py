@@ -54,7 +54,29 @@ def validate_loop_usage(text: str) -> ValidationIssue | None:
     return None
 
 
-def validate_event_set(events: list[GazzettaEvent]) -> tuple[ValidationIssue, ...]:
+def validate_settlement_location(
+    location: str, *, allowed_settlement_names: frozenset[str]
+) -> bool:
+    """Vero se `location` nomina almeno un insediamento reale consentito.
+
+    Confronto per sottostringa case-insensitive in entrambe le direzioni:
+    `location` può aggiungere colore senza ripetere l'intero titolo
+    ("Romolia — banchina nord" contiene "Romolia"), e può anche essere solo
+    il nome breve mentre il titolo canonico porta un sottotitolo editoriale
+    ("Ael Sadurith" è contenuto in "Ael Sadurith — La Città della Concordia").
+    """
+    normalized = location.casefold()
+    return any(
+        name.casefold() in normalized or normalized in name.casefold()
+        for name in allowed_settlement_names
+    )
+
+
+def validate_event_set(
+    events: list[GazzettaEvent],
+    *,
+    allowed_settlement_names: frozenset[str] = frozenset(),
+) -> tuple[ValidationIssue, ...]:
     issues: list[ValidationIssue] = []
     actual_slots = [event.slot for event in events]
     if sorted(actual_slots) != sorted(SLOTS):
@@ -125,6 +147,19 @@ def validate_event_set(events: list[GazzettaEvent]) -> tuple[ValidationIssue, ..
                 ValidationIssue(
                     code="ungrounded_event",
                     message="L'evento non conserva riferimenti alla lore",
+                    path=event.slot,
+                )
+            )
+        if allowed_settlement_names and not validate_settlement_location(
+            event.location, allowed_settlement_names=allowed_settlement_names
+        ):
+            issues.append(
+                ValidationIssue(
+                    code="invented_settlement_location",
+                    message=(
+                        "L'ambientazione dell'evento non nomina nessuno degli insediamenti "
+                        "reali consentiti per questa edizione"
+                    ),
                     path=event.slot,
                 )
             )

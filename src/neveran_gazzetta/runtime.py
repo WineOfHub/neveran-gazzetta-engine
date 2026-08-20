@@ -91,7 +91,10 @@ def build_live_runtime(root: Path | None = None) -> LiveRuntime:
         releases=releases,
         limits=retrieval_config,
     )
-    retrieval_service = EditorialRetrievalService(retrieval, retrieval_config)
+    knowledge_root = Path(secrets.knowledge_root) if secrets.knowledge_root else None
+    retrieval_service = EditorialRetrievalService(
+        retrieval, retrieval_config, knowledge_root=knowledge_root
+    )
     supabase_url = _required(secrets.supabase_url, "SUPABASE_URL")
     supabase_anon_key = _secret(secrets.supabase_anon_key, "SUPABASE_ANON_KEY")
     control = SupabaseRpcClient(
